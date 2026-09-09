@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BAS Mission Control | Autonomous HAR & Digital Twin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0d14;
+      --panel-bg: rgba(16, 22, 34, 0.85);
+      --panel-border: #1e293b;
+      --accent-cyan: #00f0ff;
+      --accent-blue: #0070f3;
+      --accent-green: #00e676;
+      --accent-orange: #ff9100;
+      --accent-red: #ff1744;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background: rgba(10, 14, 24, 0.95);
+      border-bottom: 2px solid var(--accent-cyan);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(10px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .brand h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.25rem;
+      letter-spacing: 1.5px;
+      color: #fff;
+    }
+    .brand .badge {
+      background: linear-gradient(135deg, #0070f3, #00f0ff);
+      color: #000;
+      font-weight: 700;
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+    }
+    .telemetry-badges {
+      display: flex;
+      gap: 16px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.85rem;
+    }
+    .t-badge {
+      background: rgba(30, 41, 59, 0.6);
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--panel-border);
+    }
+    .t-val { color: var(--accent-cyan); font-weight: 700; }
+
+    /* Main Grid */
+    main {
+      flex: 1;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1.8fr 1.2fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .card-header {
+      padding: 12px 18px;
+      background: rgba(30, 41, 59, 0.5);
+      border-bottom: 1px solid var(--panel-border);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 1px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Video Feed */
+    .video-container {
+      position: relative;
+      background: #000;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .video-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Step Checklist */
+    .checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 16px;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid transparent;
+      transition: all 0.3s ease;
+    }
+    .step-item.active {
+      background: rgba(0, 240, 255, 0.1);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+    }
+    .step-item.completed {
+      background: rgba(0, 230, 118, 0.08);
+      border-color: rgba(0, 230, 118, 0.4);
+    }
+    .step-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.8rem;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .step-item.active .step-icon { background: var(--accent-cyan); color: #000; }
+    .step-item.completed .step-icon { background: var(--accent-green); color: #000; }
+    .step-text h4 { font-size: 0.95rem; }
+    .step-text p { font-size: 0.8rem; color: var(--text-muted); }
+
+    /* Telemetry Log */
+    .telemetry-log {
+      padding: 14px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.8rem;
+      max-height: 220px;
+      overflow-y: auto;
+      background: #06080d;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .log-line {
+      line-height: 1.4;
+      color: #94a3b8;
+    }
+    .log-success { color: var(--accent-green); }
+    .log-alert { color: var(--accent-red); font-weight: 700; }
+
+    /* Footer Prompt */
+    footer {
+      background: rgba(10, 14, 24, 0.98);
+      border-top: 2px solid var(--accent-cyan);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .prompt-box {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid var(--accent-cyan);
+      border-radius: 8px;
+      padding: 10px 18px;
+    }
+    .prompt-box.anomaly {
+      background: rgba(255, 23, 68, 0.12);
+      border-color: var(--accent-red);
+    }
+    .prompt-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+    .prompt-box.anomaly .prompt-label { color: var(--accent-red); }
+    .prompt-content { font-size: 0.95rem; font-weight: 600; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>BHARATIYA ANTARIKSH STATION</h1>
+      <span class="badge">BAS-03 RESEARCH RACK</span>
+    </div>
+    <div class="telemetry-badges">
+      <div class="t-badge">FPS: <span class="t-val" id="t-fps">30.0</span></div>
+      <div class="t-badge">DEBOUNCE: <span class="t-val" id="t-deb">0/15</span></div>
+      <div class="t-badge">ELBOW ROM: <span class="t-val" id="t-rom">77° [OK]</span></div>
+      <div class="t-badge">S-BAND: <span class="t-val" style="color: var(--accent-green);">ONLINE</span></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Column: Payload Video Stream -->
+    <div class="card">
+      <div class="card-header">
+        <span>PRIMARY PAYLOAD CAMERA STREAM (FIXED RACK)</span>
+        <span style="color: var(--accent-cyan);">● LIVE RTSP/HTTP</span>
+      </div>
+      <div class="video-container">
+        <img id="live-stream" src="/stream" alt="Live Camera Feed Overlay">
+      </div>
+    </div>
+
+    <!-- Right Column: Step Checklist & Structured Telemetry -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <!-- Checklist Card -->
+      <div class="card">
+        <div class="card-header">PROCEDURAL SEQUENCE COMPLIANCE (DETERMINISTIC FSM)</div>
+        <div class="checklist">
+          <div class="step-item active" id="step-0">
+            <div class="step-icon">0</div>
+            <div class="step-text">
+              <h4>Step 0: Initialize Workspace</h4>
+              <p>System ready. Awaiting box opening</p>
+            </div>
+          </div>
+          <div class="step-item" id="step-1">
+            <div class="step-icon">1</div>
+            <div class="step-text">
+              <h4>Step 1: Open Box</h4>
+              <p>Lift and fold open the box lid or flaps</p>
+            </div>
+          </div>
+          <div class="step-item" id="step-2">
+            <div class="step-icon">2</div>
+            <div class="step-text">
+              <h4>Step 2: Take Out Object</h4>
+              <p>Grasp and extract object outside the box</p>
+            </div>
+          </div>
+          <div class="step-item" id="step-3">
+            <div class="step-icon">3</div>
+            <div class="step-text">
+              <h4>Step 3: Return Object</h4>
+              <p>Place the object back into the container</p>
+            </div>
+          </div>
+          <div class="step-item" id="step-4">
+            <div class="step-icon">4</div>
+            <div class="step-text">
+              <h4>Step 4: Close Box & Complete</h4>
+              <p>Fold box flaps shut to finish procedure</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Telemetry Card -->
+      <div class="card" style="flex: 1;">
+        <div class="card-header">STRUCTURED JSON LINES TELEMETRY (3,000,000:1 COMPRESSION)</div>
+        <div class="telemetry-log" id="telemetry-log">
+          <div class="log-line">[SYSTEM] Stream active on port 8080. Zero-Velocity Update (ZUPT) engaged.</div>
+          <div class="log-line log-success">{"frame": 1, "state": "IDLE", "status": "NOMINAL", "event": "INIT"}</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Persistent Audio Prompt & Anomaly Bar -->
+  <footer>
+    <div class="prompt-box" id="prompt-box">
+      <span class="prompt-label" id="prompt-label">NEXT STEP:</span>
+      <span class="prompt-content" id="prompt-text">System initialized. Please open the primary container box.</span>
+    </div>
+  </footer>
+
+</body>
+</html>

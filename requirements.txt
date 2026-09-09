@@ -1,0 +1,11 @@
+# Bharatiya Antariksh Station (BAS) - On-Board HAR Multi-Agent System
+# Core Vision & Scientific Stack
+numpy>=2.0.0
+opencv-python>=4.8.0
+pillow>=10.0.0
+pydantic>=2.0.0
+
+# Optional Model Acceleration (Edge / Desktop)
+# torch>=2.2.0
+# ultralytics>=8.1.0
+# onnxruntime>=1.17.0

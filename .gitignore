@@ -1,0 +1,77 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Large Video Recordings, Clips & Generated Frames
+experiments/*.mp4
+experiments/*.avi
+experiments/clip_frames/
+*.mp4
+*.avi
+*.mov
+
+# Generated Datasets & Annotations
+dataset/
+runs/
+*.pt
+*.onnx
+*.engine
+
+# Telemetry Output Logs (keep .gitkeep if needed)
+experiments/telemetry_*.jsonl
+experiments/video_*.mp4
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Agent & Workspace Cache
+.agents/
+.gemini/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
