@@ -86,8 +86,19 @@ stateDiagram-v2
 ## 4. Quick Start & Execution Guide
 
 ### Prerequisites
-Install the required packages:
+Create and activate a virtual environment, then install the required packages:
+
+```powershell
+# Windows (PowerShell)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
 ```bash
+# Linux / macOS
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 

@@ -61,6 +61,37 @@
       border-radius: 4px;
       letter-spacing: 1px;
     }
+
+    .view-controls {
+      display: flex;
+      gap: 8px;
+    }
+    .view-btn {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .view-btn:hover {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+    .view-btn.active {
+      background: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+      color: #000;
+    }
+
     .telemetry-badges {
       display: flex;
       gap: 16px;
@@ -78,10 +109,21 @@
     /* Main Grid */
     main {
       flex: 1;
-      padding: 20px;
+      padding: 16px 22px;
       display: grid;
-      grid-template-columns: 1.8fr 1.2fr;
-      gap: 20px;
+      grid-template-columns: 2.1fr 1fr;
+      gap: 18px;
+      transition: all 0.3s ease;
+    }
+
+    /* Large Theater Mode */
+    body.theater-mode main {
+      grid-template-columns: 1fr;
+    }
+    body.theater-mode .sidebar-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
     }
 
     .card {
@@ -91,33 +133,133 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5);
+    }
+    .video-card {
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      box-shadow: 0 0 35px rgba(0, 240, 255, 0.15), 0 12px 40px rgba(0, 0, 0, 0.6);
     }
     .card-header {
       padding: 12px 18px;
-      background: rgba(30, 41, 59, 0.5);
+      background: rgba(24, 32, 48, 0.6);
       border-bottom: 1px solid var(--panel-border);
       font-family: 'Orbitron', sans-serif;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       letter-spacing: 1px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+    .restart-btn {
+      background: linear-gradient(135deg, #0070f3, #00f0ff);
+      color: #000;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .restart-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.6);
     }
 
     /* Video Feed */
     .video-container {
       position: relative;
       background: #000;
-      aspect-ratio: 16 / 9;
+      width: 100%;
+      height: calc(100vh - 280px);
+      min-height: 520px;
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
+    }
+    body.theater-mode .video-container {
+      height: calc(100vh - 350px);
+      min-height: 600px;
     }
     .video-container img {
       width: 100%;
       height: 100%;
       object-fit: contain;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    /* Floating Real-Time HUD Badges on Video */
+    .stream-overlay-top-left {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      background: rgba(10, 15, 24, 0.88);
+      border: 1px solid var(--accent-cyan);
+      border-radius: 8px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+    .step-pill {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+      animation: pulseGlow 1.2s infinite;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+    }
+
+    .stream-overlay-top-right {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: rgba(10, 15, 24, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 8px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+    }
+    .debounce-track {
+      width: 130px;
+      height: 7px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .debounce-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0070f3, #00f0ff);
+      transition: width 0.08s ease;
+      box-shadow: 0 0 8px var(--accent-cyan);
     }
 
     /* Step Checklist */
@@ -213,6 +355,99 @@
     }
     .prompt-box.anomaly .prompt-label { color: var(--accent-red); }
     .prompt-content { font-size: 0.95rem; font-weight: 600; color: #fff; }
+
+    /* Dual Action Banner (What I'm Doing & What I Have to Do) */
+    .action-banner-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 14px;
+    }
+    .action-card {
+      padding: 14px 18px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+    .action-card.doing {
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid var(--accent-cyan);
+    }
+    .action-card.todo {
+      background: rgba(0, 230, 118, 0.08);
+      border: 1px solid var(--accent-green);
+    }
+    .action-card.anomaly {
+      background: rgba(255, 23, 68, 0.12) !important;
+      border-color: var(--accent-red) !important;
+    }
+    .action-card-tag {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+    .action-card.doing .action-card-tag { color: var(--accent-cyan); }
+    .action-card.todo .action-card-tag { color: var(--accent-green); }
+    .action-card.anomaly .action-card-tag { color: var(--accent-red); }
+    .action-card-text {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Offline LLM Audit Panel */
+    .llm-btn {
+      background: linear-gradient(135deg, #7928ca, #ff0080);
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .llm-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 16px rgba(255, 0, 128, 0.6);
+    }
+    .llm-audit-box {
+      padding: 16px;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      max-height: 240px;
+      overflow-y: auto;
+      background: #06080e;
+      color: #cbd5e1;
+      font-family: 'Inter', sans-serif;
+      border-bottom: 1px solid var(--panel-border);
+    }
+    .llm-audit-box h3 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      color: var(--accent-cyan);
+      margin: 10px 0 4px 0;
+    }
+    .llm-audit-box ul { margin-left: 18px; margin-bottom: 8px; }
+    .llm-audit-box li { margin-bottom: 4px; }
+    .llm-placeholder {
+      color: #64748b;
+      font-style: italic;
+      text-align: center;
+      padding: 24px 10px;
+    }
   </style>
 </head>
 <body>
@@ -222,31 +457,78 @@
       <h1>BHARATIYA ANTARIKSH STATION</h1>
       <span class="badge">BAS-03 RESEARCH RACK</span>
     </div>
+
+    <!-- View & Screen Clarity Controls -->
+    <div class="view-controls">
+      <button class="view-btn active" id="btn-mode-standard" onclick="setDashboardMode('standard')">🖥️ CONSOLE VIEW</button>
+      <button class="view-btn" id="btn-mode-theater" onclick="setDashboardMode('theater')">📺 LARGE SCREEN (THEATER)</button>
+      <button class="view-btn" onclick="toggleFullscreen()">⛶ FULLSCREEN</button>
+    </div>
+
+    <!-- Real-Time Telemetry Badges -->
     <div class="telemetry-badges">
       <div class="t-badge">FPS: <span class="t-val" id="t-fps">30.0</span></div>
-      <div class="t-badge">DEBOUNCE: <span class="t-val" id="t-deb">0/15</span></div>
-      <div class="t-badge">ELBOW ROM: <span class="t-val" id="t-rom">77° [OK]</span></div>
+      <div class="t-badge">DEBOUNCE: <span class="t-val" id="t-deb">0/12</span></div>
+      <div class="t-badge">LID: <span class="t-val" id="t-lid">0° [CLOSED]</span></div>
       <div class="t-badge">S-BAND: <span class="t-val" style="color: var(--accent-green);">ONLINE</span></div>
     </div>
   </header>
 
-  <main>
-    <!-- Left Column: Payload Video Stream -->
-    <div class="card">
-      <div class="card-header">
-        <span>PRIMARY PAYLOAD CAMERA STREAM (FIXED RACK)</span>
-        <span style="color: var(--accent-cyan);">● LIVE RTSP/HTTP</span>
+  <main id="main-dashboard">
+    <!-- Left Column: Payload Video Stream & Dual Action Cards -->
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="card video-card">
+        <div class="card-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-weight: 700;">PRIMARY PAYLOAD WEBCAM FEED (HD 720p)</span>
+            <span style="font-size: 0.72rem; color: var(--accent-green); background: rgba(0, 230, 118, 0.12); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(0, 230, 118, 0.3);">● ULTRA-LOW LATENCY</span>
+          </div>
+          <button id="btn-restart" class="restart-btn" onclick="restartTestSequence()">🔄 TEST AGAIN</button>
+        </div>
+        <div class="video-container" id="stream-box">
+          <img id="live-stream" src="/stream" alt="Live Camera Feed Overlay">
+
+          <!-- Live On-Video HUD Overlays -->
+          <div class="stream-overlay-top-left">
+            <div class="pulse-dot"></div>
+            <div class="step-pill" id="overlay-step-name">STEP 0: INITIALIZE WORKSPACE</div>
+          </div>
+
+          <div class="stream-overlay-top-right">
+            <div style="display: flex; justify-content: space-between; font-family: 'Orbitron', monospace; font-size: 0.72rem; font-weight: 700;">
+              <span>DEBOUNCE GATE</span>
+              <span id="overlay-deb-text" style="color: var(--accent-cyan);">0/12</span>
+            </div>
+            <div class="debounce-track">
+              <div class="debounce-fill" id="overlay-deb-bar"></div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="video-container">
-        <img id="live-stream" src="/stream" alt="Live Camera Feed Overlay">
+
+      <!-- Real-Time Dual Action Detection Card -->
+      <div class="action-banner-grid">
+        <div class="action-card doing" id="card-doing">
+          <div class="action-card-tag">WHAT I AM DOING (REAL-TIME ACTION)</div>
+          <div class="action-card-text" id="action-doing">OBSERVING WORKSPACE (IDLE)</div>
+        </div>
+        <div class="action-card todo" id="card-todo">
+          <div class="action-card-tag" id="tag-todo">WHAT I HAVE TO DO (NEXT STEP)</div>
+          <div class="action-card-text" id="action-todo">System initialized. Please open the box.</div>
+        </div>
       </div>
     </div>
 
-    <!-- Right Column: Step Checklist & Structured Telemetry -->
-    <div style="display: flex; flex-direction: column; gap: 20px;">
+    <!-- Right Column: Step Checklist, Telemetry, & Offline LLM Audit -->
+    <div class="sidebar-container" style="display: flex; flex-direction: column; gap: 16px;">
       <!-- Checklist Card -->
       <div class="card">
-        <div class="card-header">PROCEDURAL SEQUENCE COMPLIANCE (DETERMINISTIC FSM)</div>
+        <div class="card-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span>PROCEDURAL STEP CHECKLIST</span>
+            <span id="fsm-status-badge" style="display: none; padding: 3px 10px; border-radius: 4px; font-size: 0.72rem; font-weight: 800; background: var(--accent-green); color: #000; letter-spacing: 0.5px;">✓ ALL STEPS COMPLETE</span>
+          </div>
+        </div>
         <div class="checklist">
           <div class="step-item active" id="step-0">
             <div class="step-icon">0</div>
@@ -286,6 +568,21 @@
         </div>
       </div>
 
+      <!-- Offline LLM Mission Audit Card -->
+      <div class="card">
+        <div class="card-header">
+          <span>🤖 OFFLINE LOCAL LLM MISSION AUDIT (QWEN-2.5 1.5B)</span>
+          <button id="btn-llm" class="llm-btn" onclick="triggerLLMAudit()">🤖 RUN LLM AUDIT</button>
+        </div>
+        <div class="llm-audit-box" id="llm-audit-box">
+          <div class="llm-placeholder">Awaiting experiment completion or click 'RUN LLM AUDIT' to analyze recorded actions from <code>session_actions.json</code>...</div>
+        </div>
+        <div style="padding: 8px 14px; background: rgba(0,0,0,0.4); font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; border-top: 1px solid var(--panel-border);">
+          <span>JSON LOG: <a href="/api/session_actions" target="_blank" style="color: var(--accent-cyan); text-decoration: none;">experiments/session_actions.json</a></span>
+          <span id="session-stats">Tracking live actions</span>
+        </div>
+      </div>
+
       <!-- Telemetry Card -->
       <div class="card" style="flex: 1;">
         <div class="card-header">STRUCTURED JSON LINES TELEMETRY (3,000,000:1 COMPRESSION)</div>
@@ -305,5 +602,323 @@
     </div>
   </footer>
 
+  <!-- Dynamic Real-Time Client Controller -->
+  <script>
+    const streamImg = document.getElementById('live-stream');
+    const tFps = document.getElementById('t-fps');
+    const tDeb = document.getElementById('t-deb');
+    const tLid = document.getElementById('t-lid');
+    const promptText = document.getElementById('prompt-text');
+    const promptLabel = document.getElementById('prompt-label');
+    const promptBox = document.getElementById('prompt-box');
+    const logBox = document.getElementById('telemetry-log');
+    const overlayStepName = document.getElementById('overlay-step-name');
+    const overlayDebText = document.getElementById('overlay-deb-text');
+    const overlayDebBar = document.getElementById('overlay-deb-bar');
+
+    let streamActive = true;
+    let fallbackTimer = null;
+    let lastEventLogged = null;
+    let lastAnomalyLogged = null;
+    let previousStep = null;
+
+    // View Switcher (Console View vs Large Screen Theater Mode)
+    function setDashboardMode(mode) {
+      const body = document.body;
+      const btnStd = document.getElementById('btn-mode-standard');
+      const btnThe = document.getElementById('btn-mode-theater');
+
+      if (mode === 'theater') {
+        body.classList.add('theater-mode');
+        btnThe.classList.add('active');
+        btnStd.classList.remove('active');
+      } else {
+        body.classList.remove('theater-mode');
+        btnStd.classList.add('active');
+        btnThe.classList.remove('active');
+      }
+    }
+
+    function toggleFullscreen() {
+      const elem = document.getElementById('stream-box');
+      if (!document.fullscreenElement) {
+        elem.requestFullscreen().catch(err => alert(`Fullscreen error: ${err.message}`));
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    async function restartTestSequence() {
+      const btn = document.getElementById('btn-restart');
+      if (btn) btn.textContent = '⏳ RESETTING...';
+      try {
+        const resp = await fetch('/reset?t=' + Date.now());
+        if (resp.ok) {
+          logBox.innerHTML = '<div class="log-line log-success">[SYSTEM] Test sequence reset to Step 0 (IDLE). Ready for next run...</div>';
+          lastEventLogged = null;
+          lastAnomalyLogged = null;
+          previousStep = 0;
+          llmAuditTriggered = false;
+
+          const statusBadge = document.getElementById('fsm-status-badge');
+          if (statusBadge) statusBadge.style.display = 'none';
+
+          for (let i = 0; i <= 4; i++) {
+            const item = document.getElementById(`step-${i}`);
+            if (!item) continue;
+            const icon = item.querySelector('.step-icon');
+            if (i === 0) {
+              item.className = 'step-item active';
+              if (icon) icon.textContent = '0';
+            } else {
+              item.className = 'step-item';
+              if (icon) icon.textContent = i;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Reset request error:', err);
+      } finally {
+        setTimeout(() => {
+          if (btn) btn.textContent = '🔄 TEST AGAIN';
+        }, 1000);
+      }
+    }
+
+    // 1. Robust Video Stream Handler with Snapshot Fallback
+    function setupVideoStream() {
+      streamImg.onerror = () => {
+        console.warn("[Stream] MJPEG stream disconnected. Engaging high-rate snapshot polling...");
+        if (!fallbackTimer) {
+          fallbackTimer = setInterval(() => {
+            const tempImg = new Image();
+            tempImg.onload = () => {
+              streamImg.src = tempImg.src;
+            };
+            tempImg.src = '/snapshot?t=' + Date.now();
+          }, 40); // 25 FPS fallback
+        }
+      };
+
+      streamImg.onload = () => {
+        if (fallbackTimer && streamImg.src.includes('/stream')) {
+          clearInterval(fallbackTimer);
+          fallbackTimer = null;
+          console.log("[Stream] MJPEG stream re-engaged.");
+        }
+      };
+    }
+    setupVideoStream();
+
+    // 2. High-Frequency Real-Time Telemetry Polling (25 Hz / 40ms)
+    async function updateTelemetry() {
+      try {
+        const resp = await fetch('/telemetry?t=' + Date.now());
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data || data.step === undefined) return;
+
+        // Update Header Badges
+        if (data.fps !== undefined) tFps.textContent = data.fps.toFixed(1);
+        const debVal = data.debounce !== undefined ? data.debounce : 0;
+        const debMax = data.debounce_max !== undefined ? data.debounce_max : 12;
+        tDeb.textContent = `${debVal}/${debMax}`;
+
+        const lidAngle = data.lid_angle !== undefined ? data.lid_angle : 0;
+        const lidStatus = lidAngle >= 28 ? 'OPEN' : 'CLOSED';
+        if (tLid) tLid.textContent = `${lidAngle.toFixed(0)}° [${lidStatus}]`;
+
+        // Update On-Video Floating HUD Overlays
+        const stepLabels = {
+          0: "STEP 0: INITIALIZE WORKSPACE",
+          1: "STEP 1: OPEN CONTAINER BOX",
+          2: "STEP 2: TAKE OUT OBJECT",
+          3: "STEP 3: RETURN OBJECT INTO BOX",
+          4: "STEP 4: PROCEDURAL COMPLETE"
+        };
+        if (overlayStepName) {
+          overlayStepName.textContent = stepLabels[data.step] || `STEP ${data.step}: ${data.step_name}`;
+        }
+        if (overlayDebText) {
+          overlayDebText.textContent = `${debVal}/${debMax}`;
+        }
+        if (overlayDebBar) {
+          const fillPct = Math.min(100, Math.round((debVal / debMax) * 100));
+          overlayDebBar.style.width = fillPct + '%';
+        }
+
+        const isComplete = (data.step === 4 || data.step_name === "COMPLETE");
+
+        // Update Dual Action Cards (What I'm Doing & What I Have to Do)
+        const elDoing = document.getElementById('action-doing');
+        const elTodo = document.getElementById('action-todo');
+        const cardTodo = document.getElementById('card-todo');
+        const tagTodo = document.getElementById('tag-todo');
+
+        if (isComplete) {
+          if (elDoing) elDoing.textContent = "PROCEDURE COMPLETED (NOMINAL)";
+          if (elTodo) elTodo.textContent = "Box closed. All 4 procedural steps complete.";
+          if (cardTodo) cardTodo.className = 'action-card todo';
+          if (tagTodo) tagTodo.textContent = "STATUS: VERIFIED COMPLETE";
+        } else {
+          if (elDoing && data.what_i_am_doing) {
+            elDoing.textContent = data.what_i_am_doing !== "IDLE" ? data.what_i_am_doing : "OBSERVING WORKSPACE (IDLE)";
+          }
+          if (elTodo && data.what_i_have_to_do) {
+            elTodo.textContent = data.what_i_have_to_do;
+          }
+          if (cardTodo) {
+            if (data.anomaly && data.anomaly !== "NONE") {
+              cardTodo.className = 'action-card anomaly';
+              if (tagTodo) tagTodo.textContent = `ALERT [${data.anomaly}]`;
+            } else {
+              cardTodo.className = 'action-card todo';
+              if (tagTodo) tagTodo.textContent = "WHAT I HAVE TO DO (NEXT STEP)";
+            }
+          }
+        }
+
+        // Detect cycle completion and loop back to Step 0
+        if (previousStep !== null && previousStep >= 3 && data.step === 0) {
+          logBox.innerHTML = '<div class="log-line log-success">[SYSTEM] Experiment video looped back to start. Resetting test cycle...</div>';
+          lastEventLogged = null;
+          lastAnomalyLogged = null;
+          llmAuditTriggered = false;
+          const statusBadge = document.getElementById('fsm-status-badge');
+          if (statusBadge) statusBadge.style.display = 'none';
+        }
+        previousStep = data.step;
+
+        // Auto-Trigger Offline LLM Audit on Step 4 (COMPLETE)
+        if (isComplete && !llmAuditTriggered) {
+          llmAuditTriggered = true;
+          console.log("[Client] Step 4 reached. Triggering automated Offline LLM Audit...");
+          triggerLLMAudit();
+        }
+
+        // Update Checklist Status Badge
+        const statusBadge = document.getElementById('fsm-status-badge');
+        if (statusBadge) {
+          statusBadge.style.display = isComplete ? 'inline-block' : 'none';
+        }
+
+        // Update Active Step Checklist
+        for (let i = 0; i <= 4; i++) {
+          const item = document.getElementById(`step-${i}`);
+          if (!item) continue;
+          const icon = item.querySelector('.step-icon');
+
+          if (isComplete) {
+            // When procedure is complete, ALL steps 0-4 are marked COMPLETED with checkmark!
+            item.className = 'step-item completed';
+            if (icon) icon.textContent = '✓';
+          } else if (i < data.step) {
+            item.className = 'step-item completed';
+            if (icon) icon.textContent = '✓';
+          } else if (i === data.step) {
+            item.className = 'step-item active';
+            if (icon) icon.textContent = i;
+          } else {
+            item.className = 'step-item';
+            if (icon) icon.textContent = i;
+          }
+        }
+
+        // Update Prompt & Anomaly Banner
+        if (isComplete) {
+          promptBox.className = 'prompt-box';
+          promptBox.style.borderColor = 'var(--accent-green)';
+          promptBox.style.background = 'rgba(0, 230, 118, 0.1)';
+          promptLabel.textContent = 'MISSION COMPLETE:';
+          promptLabel.style.color = 'var(--accent-green)';
+          promptText.textContent = 'Box securely closed. All 4 procedural steps verified with 100% nominal compliance.';
+        } else if (data.anomaly && data.anomaly !== "NONE") {
+          promptBox.className = 'prompt-box anomaly';
+          promptBox.style.borderColor = '';
+          promptBox.style.background = '';
+          promptLabel.textContent = `ANOMALY [${data.anomaly}]:`;
+          promptLabel.style.color = '';
+          if (data.instruction) promptText.textContent = data.instruction;
+        } else {
+          promptBox.className = 'prompt-box';
+          promptBox.style.borderColor = '';
+          promptBox.style.background = '';
+          promptLabel.textContent = 'NEXT STEP:';
+          promptLabel.style.color = '';
+          if (data.instruction) promptText.textContent = data.instruction;
+        }
+
+        // Append Structured Log Lines on New Transitions or Anomalies
+        if (data.transition_event && data.transition_event !== lastEventLogged) {
+          lastEventLogged = data.transition_event;
+          const line = document.createElement('div');
+          line.className = 'log-line log-success';
+          line.textContent = `[STATE_COMMITTED] Frame ${data.frame_id}: Event '${data.transition_event}' -> Step ${data.step} (${data.step_name})`;
+          logBox.appendChild(line);
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        if (data.anomaly && data.anomaly !== "NONE" && data.anomaly !== lastAnomalyLogged) {
+          lastAnomalyLogged = data.anomaly;
+          const line = document.createElement('div');
+          line.className = 'log-line log-alert';
+          line.textContent = `[ANOMALY_ALARM] Frame ${data.frame_id}: ${data.anomaly} detected. Priority voice triggered.`;
+          logBox.appendChild(line);
+          logBox.scrollTop = logBox.scrollHeight;
+        } else if (data.anomaly === "NONE") {
+          lastAnomalyLogged = null;
+        }
+
+      } catch (err) {
+        // Silent catch for intermittent polling errors
+      }
+    }
+
+    let llmAuditTriggered = false;
+
+    // 3. Offline LLM Procedural Audit Query
+    async function triggerLLMAudit() {
+      const btn = document.getElementById('btn-llm');
+      const box = document.getElementById('llm-audit-box');
+      if (btn) btn.textContent = '⏳ RUNNING OFFLINE LLM...';
+      if (box) box.innerHTML = '<div class="llm-placeholder">🤖 Querying local offline LLM (Qwen-2.5 1.5B) to audit recorded session actions...</div>';
+
+      try {
+        const resp = await fetch('/api/analyze?t=' + Date.now());
+        if (resp.ok) {
+          const res = await resp.json();
+          if (res.report && box) {
+            let html = res.report
+              .replace(/### (.*?)\n/g, '<h3>$1</h3>')
+              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+              .replace(/- (.*?)\n/g, '<li>$1</li>')
+              .replace(/\n\n/g, '<br>');
+            box.innerHTML = `<div style="animation: fadeIn 0.4s ease;">${html}</div>`;
+          }
+        }
+      } catch (err) {
+        if (box) box.innerHTML = `<div class="llm-placeholder" style="color: var(--accent-red);">Offline LLM query error: ${err}</div>`;
+      } finally {
+        if (btn) btn.textContent = '🤖 RUN LLM AUDIT';
+      }
+    }
+
+    // 4. Periodic Session Action JSON Telemetry Poll
+    async function updateSessionStats() {
+      try {
+        const resp = await fetch('/api/session_actions?t=' + Date.now());
+        if (!resp.ok) return;
+        const d = await resp.json();
+        const statEl = document.getElementById('session-stats');
+        if (statEl && d.total_actions_recorded !== undefined) {
+          statEl.textContent = `${d.total_actions_recorded} Actions Logged | ${d.summary ? d.summary.compliance_status : 'NOMINAL'}`;
+        }
+      } catch (e) {}
+    }
+
+    // High frequency 40ms sync (25 Hz) for zero-latency UI updates
+    setInterval(updateTelemetry, 40);
+    setInterval(updateSessionStats, 1500);
+  </script>
 </body>
 </html>

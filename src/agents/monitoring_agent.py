@@ -17,6 +17,7 @@ from src.core.types import (
 )
 from src.audio.offline_tts import OfflineTTS
 from src.telemetry.jsonl_logger import JSONLTelemetryLogger
+from src.telemetry.action_session_logger import ActionSessionLogger
 from src.streaming.video_pipeline import DualVideoPipeline
 
 
@@ -33,12 +34,24 @@ class MonitoringAgent:
     ):
         self.tts = OfflineTTS() if enable_tts else None
         self.telemetry = JSONLTelemetryLogger(output_telemetry_path)
+        self.action_logger = ActionSessionLogger()
         self.video_pipeline = DualVideoPipeline(
             local_output_path=output_video_path,
             stream_port=stream_port
         ) if enable_streaming else None
 
         self.last_step_logged: Optional[FSMStep] = None
+
+    def reset(self):
+        """Resets action session logger and telemetry for new experiment run."""
+        if self.action_logger:
+            self.action_logger.reset()
+
+    def check_reset_requested(self) -> bool:
+        """Checks if web client requested an experiment reset."""
+        if self.video_pipeline:
+            return self.video_pipeline.check_and_clear_reset()
+        return False
 
     def process_egress(
         self,
@@ -55,10 +68,11 @@ class MonitoringAgent:
         frame_id: int,
         fps: float,
         latency_ms: float,
-        twin_canvas: Optional[np.ndarray] = None
+        twin_canvas: Optional[np.ndarray] = None,
+        current_activity: str = "IDLE"
     ) -> np.ndarray:
         """
-        Synthesizes audio alerts, emits JSONL telemetry, and renders live HUD overlays.
+        Synthesizes audio alerts, logs session actions to JSON, and renders live HUD overlays.
         Returns the annotated display frame.
         """
         # 1. Trigger Voice Alerts / Spoken Guidance
@@ -66,7 +80,20 @@ class MonitoringAgent:
             is_priority = anomaly != AnomalyType.NONE
             self.tts.speak(voice_alert, priority=is_priority)
 
-        # 2. Emit Telemetry Records
+        # 2. Update Structured Action Session Logger (What I'm doing vs What I have to do)
+        timestamp_sec = frame_id / max(1.0, fps)
+        self.action_logger.update(
+            frame_id=frame_id,
+            timestamp_sec=timestamp_sec,
+            step=int(current_step),
+            step_name=current_step.name,
+            what_i_am_doing=current_activity,
+            what_i_have_to_do=instruction,
+            lid_angle=lid_angle,
+            anomaly=anomaly.value
+        )
+
+        # 3. Emit Telemetry Records
         if transition_event is not None:
             self.telemetry.log_event(
                 frame_id=frame_id,
@@ -76,7 +103,7 @@ class MonitoringAgent:
                 status="SUCCESS",
                 anomaly=anomaly.value,
                 tts_prompt=instruction,
-                details={"lid_angle": round(lid_angle, 1)}
+                details={"lid_angle": round(lid_angle, 1), "activity": current_activity}
             )
         elif anomaly != AnomalyType.NONE:
             self.telemetry.log_event(
@@ -92,7 +119,7 @@ class MonitoringAgent:
         # Periodic Heartbeat
         self.telemetry.log_heartbeat(frame_id, int(current_step), current_step.name, fps, latency_ms)
 
-        # 3. Composite Live Stream HUD Overlay
+        # 4. Composite Live Stream HUD Overlay
         annotated_frame = self._draw_hud(
             raw_frame=raw_frame,
             pose=fused_pose,
@@ -103,12 +130,27 @@ class MonitoringAgent:
             anomaly=anomaly,
             instruction=instruction,
             fps=fps,
-            twin_canvas=twin_canvas
+            twin_canvas=twin_canvas,
+            current_activity=current_activity
         )
 
-        # 4. Dispatch to Dual Video Pipeline (Local MP4 + RTSP Stream)
+        # 5. Dispatch to Dual Video Pipeline (Local MP4 + RTSP Stream + Web API)
         if self.video_pipeline:
-            self.video_pipeline.write_frame(annotated_frame)
+            self.video_pipeline.write_frame(annotated_frame, telemetry={
+                "step": int(current_step),
+                "step_name": current_step.name,
+                "debounce": debounce_count,
+                "debounce_max": 12,
+                "anomaly": anomaly.value,
+                "instruction": instruction,
+                "transition_event": transition_event,
+                "fps": round(fps, 1),
+                "latency_ms": round(latency_ms, 1),
+                "lid_angle": round(lid_angle, 1),
+                "frame_id": frame_id,
+                "what_i_am_doing": current_activity,
+                "what_i_have_to_do": instruction
+            })
 
         return annotated_frame
 
@@ -123,7 +165,8 @@ class MonitoringAgent:
         anomaly: AnomalyType,
         instruction: str,
         fps: float,
-        twin_canvas: Optional[np.ndarray] = None
+        twin_canvas: Optional[np.ndarray] = None,
+        current_activity: str = "IDLE"
     ) -> np.ndarray:
         frame = raw_frame.copy()
         h, w, _ = frame.shape
@@ -132,6 +175,7 @@ class MonitoringAgent:
         color_map = {
             "container_box": (160, 160, 160),
             "container_lid": (0, 240, 200),
+            "component_box": (255, 140, 0),
             "red_box": (40, 40, 240),
             "yellow_box": (20, 220, 240)
         }
@@ -152,28 +196,43 @@ class MonitoringAgent:
         # 2. Draw Hand & 3D Pose Keypoints
         wrist = pose.joints.get("wrist")
         if wrist:
-            wx = int(w * 0.5 + wrist.pos_camera.x * 600)
-            wy = int(h * 0.5 + wrist.pos_camera.y * 600)
+            # Reconstruct pixel from wrist camera coords
+            wx = int(self.video_pipeline.resolution[0]/2 + wrist.pos_camera.x * 400) if self.video_pipeline else w//2
+            wy = int(self.video_pipeline.resolution[1]/2 + wrist.pos_camera.y * 400) if self.video_pipeline else h//2
             wx = max(10, min(w - 10, wx))
             wy = max(10, min(h - 10, wy))
-            cv2.circle(frame, (wx, wy), 9, (255, 180, 0), -1)
-            cv2.circle(frame, (wx, wy), 11, (255, 255, 255), 2)
-            cv2.putText(frame, "ASTRONAUT WRIST", (wx + 15, wy + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 200, 0), 1)
+            cv2.circle(frame, (wx, wy), 9, (0, 240, 255), -1)
+            cv2.putText(frame, "ASTRONAUT WRIST", (wx + 12, wy + 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 240, 255), 1)
 
-        # 3. Top Mission Banner
+        # 3. Top Mission Banner & Bottom Action Bar (Semi-transparent HUD overlay)
         banner_h = 75
-        cv2.rectangle(frame, (0, 0), (w, banner_h), (15, 18, 22), -1)
+        bot_h = 68
+        bot_col = (12, 16, 24)
+        if anomaly != AnomalyType.NONE:
+            bot_col = (35, 10, 25)
+
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (w, banner_h), (12, 16, 24), -1)
+        cv2.rectangle(overlay, (0, h - bot_h), (w, h), bot_col, -1)
+        cv2.addWeighted(overlay, 0.78, frame, 0.22, 0, frame)
+
         cv2.line(frame, (0, banner_h), (w, banner_h), (0, 180, 255), 2)
+        border_col = (0, 0, 255) if anomaly != AnomalyType.NONE else (0, 180, 255)
+        cv2.line(frame, (0, h - bot_h), (w, h - bot_h), border_col, 2)
 
         # Logo / Title
         cv2.putText(frame, "BHARATIYA ANTARIKSH STATION (BAS) | ON-BOARD HAR ASSISTANT", (20, 28),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
         
-        # Step Progress Pills
-        steps = [("S0: IDLE", FSMStep.IDLE), 
-                 ("S1: OPEN", FSMStep.CONTAINER_OPEN), 
-                 ("S2: EXTRACT RED", FSMStep.RED_EXTRACTED), 
-                 ("S3: EXTRACT YEL", FSMStep.COMPLETE)]
+        # Step Progress Pills (Box Object Extraction & Return Procedure)
+        steps = [
+            ("S0: IDLE", FSMStep.IDLE),
+            ("S1: OPEN BOX", FSMStep.BOX_OPENED),
+            ("S2: EXTRACT", FSMStep.OBJECT_EXTRACTED),
+            ("S3: RETURN", FSMStep.OBJECT_RETURNED),
+            ("S4: COMPLETE", FSMStep.COMPLETE)
+        ]
         
         px = 20
         for label, step_val in steps:
@@ -194,32 +253,44 @@ class MonitoringAgent:
             px += p_w + 12
 
         # FPS & Telemetry status in top right
-        cv2.putText(frame, f"FPS: {fps:.1f} | DEBOUNCE: {debounce_count}/15", (w - 240, 28),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 255, 200), 1)
-        cv2.putText(frame, f"S-BAND JSONL: ACTIVE", (w - 240, 52),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (180, 190, 200), 1)
-
-        # 4. Bottom Instruction & Voice Prompt Bar
-        bot_h = 55
-        bot_col = (15, 18, 22)
-        if anomaly != AnomalyType.NONE:
-            bot_col = (20, 20, 160) # Red warning banner
+        cv2.putText(frame, f"FPS: {fps:.1f} | DEBOUNCE: {debounce_count}/12", (w - 240, 26),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 200), 1)
         
-        cv2.rectangle(frame, (0, h - bot_h), (w, h), bot_col, -1)
-        cv2.line(frame, (0, h - bot_h), (w, h - bot_h), (0, 0, 255) if anomaly != AnomalyType.NONE else (0, 180, 255), 2)
-        
-        prefix = "ALERT: " if anomaly != AnomalyType.NONE else "NEXT STEP: "
-        cv2.putText(frame, f"{prefix}{instruction}", (20, h - 22),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
+        # Debounce progress bar
+        bar_w = 140
+        bar_h = 8
+        bx = w - 240
+        by = 34
+        cv2.rectangle(frame, (bx, by), (bx + bar_w, by + bar_h), (40, 45, 55), -1)
+        fill_w = int((min(12, debounce_count) / 12.0) * bar_w)
+        if fill_w > 0:
+            cv2.rectangle(frame, (bx, by), (bx + fill_w, by + bar_h), (0, 240, 255), -1)
+        cv2.rectangle(frame, (bx, by), (bx + bar_w, by + bar_h), (100, 120, 140), 1)
 
-        # 5. Optional Picture-in-Picture Digital Twin Canvas in bottom right
+        cv2.putText(frame, f"S-BAND JSONL: ACTIVE | LID: {lid_angle:.0f}deg", (w - 240, 58),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (180, 190, 200), 1)
+        
+        # Row 1: What I am Doing (Active Human Activity)
+        cv2.rectangle(frame, (16, h - 58), (196, h - 36), (0, 210, 255), -1)
+        cv2.putText(frame, "WHAT I AM DOING", (22, h - 42), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (10, 10, 10), 1)
+        act_display = current_activity if current_activity != "IDLE" else "OBSERVING WORKSPACE (IDLE)"
+        cv2.putText(frame, act_display, (208, h - 41), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 240, 255), 2)
+
+        # Row 2: What I Have to Do (Next Procedural Step Guidance)
+        req_badge_col = (0, 180, 60) if anomaly == AnomalyType.NONE else (40, 40, 240)
+        cv2.rectangle(frame, (16, h - 28), (196, h - 6), req_badge_col, -1)
+        req_badge_text = "WHAT TO DO NEXT" if anomaly == AnomalyType.NONE else f"ALERT [{anomaly.value}]"
+        cv2.putText(frame, req_badge_text, (22, h - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 255), 1)
+        cv2.putText(frame, instruction, (208, h - 11), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 2)
+
+        # 5. Compact Picture-in-Picture Digital Twin Canvas in bottom right
         if twin_canvas is not None:
             th, tw = twin_canvas.shape[:2]
-            pip_w = 340
+            pip_w = min(260, max(160, int(w * 0.22)))
             pip_h = int(th * (pip_w / tw))
             pip_resized = cv2.resize(twin_canvas, (pip_w, pip_h))
             
-            # Place in bottom right above instruction bar
+            # Place neatly in bottom right above bottom action bar
             py1 = h - bot_h - pip_h - 10
             py2 = py1 + pip_h
             px1 = w - pip_w - 10
@@ -227,10 +298,14 @@ class MonitoringAgent:
 
             frame[py1:py2, px1:px2] = pip_resized
             cv2.rectangle(frame, (px1, py1), (px2, py2), (0, 220, 255), 2)
+            cv2.putText(frame, "3D DIGITAL TWIN", (px1 + 6, py1 - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 220, 255), 1)
 
         return frame
 
     def close(self):
+        if self.action_logger:
+            self.action_logger.save()
         if self.video_pipeline:
             self.video_pipeline.close()
         if self.telemetry:

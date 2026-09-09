@@ -1,0 +1,74 @@
+{
+  "video_metadata": {
+    "video_path": "clip.mp4",
+    "total_frames": 673,
+    "fps": 23.82,
+    "duration_sec": 28.26,
+    "resolution": "1920x1080"
+  },
+  "fsm_protocol": "configs/box_return_fsm.json",
+  "stages": [
+    {
+      "step_id": 0,
+      "state_name": "IDLE",
+      "timestamp": "00:00 - 00:04",
+      "frame_range": "0 - 95",
+      "action": "Astronaut sitting in neutral posture. Outer containment box is closed.",
+      "lid_angle_deg": 0.0,
+      "hoi_state": "IDLE",
+      "object_state": "DOCKED inside container",
+      "audio_instruction": "System initialized. Please open the box.",
+      "safety_gate": "Nominal baseline"
+    },
+    {
+      "step_id": 1,
+      "state_name": "BOX_OPENED",
+      "timestamp": "00:04 - 00:08",
+      "frame_range": "96 - 190",
+      "action": "Astronaut leans forward, grasps box flaps and opens the lid to ~70\u00b0 elevation.",
+      "lid_angle_deg": 70.0,
+      "hoi_state": "CONTACT / LIFT_LID",
+      "object_state": "DOCKED (Revealed inside protective foam)",
+      "audio_instruction": "Box opened. Next step: Please take out the object.",
+      "safety_gate": "Debounced >= 12 frames at lid_angle >= 35\u00b0"
+    },
+    {
+      "step_id": 2,
+      "state_name": "OBJECT_EXTRACTED",
+      "timestamp": "00:08 - 00:18",
+      "frame_range": "191 - 428",
+      "action": "Astronaut reaches inside, establishes dual-hand grasp on inner box, and extracts it outside the container boundary.",
+      "lid_angle_deg": 70.0,
+      "hoi_state": "GRASP -> EXTRACT",
+      "object_state": "EXTRACTED (is_inside_container: False)",
+      "audio_instruction": "Object extracted. Next step: Please return the object into the box.",
+      "safety_gate": "Debounced >= 12 frames. Premature box closure gated with ERROR_SKIP alert."
+    },
+    {
+      "step_id": 3,
+      "state_name": "OBJECT_RETURNED",
+      "timestamp": "00:18 - 00:25",
+      "frame_range": "429 - 595",
+      "action": "Astronaut guides extracted object back inside the container between foam cushions while lid remains elevated.",
+      "lid_angle_deg": 70.0,
+      "hoi_state": "RETURN -> RELEASE",
+      "object_state": "DOCKED (is_inside_container: True)",
+      "audio_instruction": "Object returned. Next step: Please close the box.",
+      "safety_gate": "Debounced >= 12 frames with all items inside container."
+    },
+    {
+      "step_id": 4,
+      "state_name": "COMPLETE",
+      "timestamp": "00:25 - 00:28",
+      "frame_range": "596 - 673",
+      "action": "Astronaut folds box flaps down to closed position (lid angle < 20\u00b0).",
+      "lid_angle_deg": 0.0,
+      "hoi_state": "CLOSE_LID -> IDLE",
+      "object_state": "DOCKED & SECURED",
+      "audio_instruction": "Box closed. Experiment successfully completed.",
+      "safety_gate": "Debounced >= 12 frames. Procedure verified and mission log committed."
+    }
+  ],
+  "llm_model": "qwen3.5:9b",
+  "llm_output": ""
+}

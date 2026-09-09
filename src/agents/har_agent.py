@@ -28,9 +28,15 @@ class HARAgent:
             "container_box": 0,
             "container_lid": 0,
             "red_box": 0,
-            "yellow_box": 0
+            "yellow_box": 0,
+            "component_box": 0
         }
         self.extraction_threshold_y = 0.20 # Metric meters offset relative to container
+
+    def reset(self):
+        """Resets all HOI contact counters for a new test cycle."""
+        for k in self.contact_frame_counters:
+            self.contact_frame_counters[k] = 0
 
     def evaluate_interactions(
         self,
@@ -56,7 +62,11 @@ class HARAgent:
         cont = objects.get("container_box")
         cont_pos = cont.pos_rack if cont else Vector3D()
 
-        for obj_name in ("red_box", "yellow_box", "container_lid"):
+        target_names = [k for k in objects.keys() if k != "container_box"]
+        if not target_names:
+            target_names = ["component_box"]
+
+        for obj_name in target_names:
             obj = objects.get(obj_name)
             if not obj:
                 continue
@@ -65,25 +75,35 @@ class HARAgent:
             
             # Determine Action Primitive
             if dist <= self.contact_threshold_m:
-                self.contact_frame_counters[obj_name] += 1
-                if self.contact_frame_counters[obj_name] >= 5:
+                self.contact_frame_counters[obj_name] = self.contact_frame_counters.get(obj_name, 0) + 1
+                if self.contact_frame_counters[obj_name] >= 4:
                     action = HOIAction.GRASP
                 else:
                     action = HOIAction.CONTACT
             elif dist <= self.approach_threshold_m:
-                self.contact_frame_counters[obj_name] = max(0, self.contact_frame_counters[obj_name] - 1)
+                self.contact_frame_counters[obj_name] = max(0, self.contact_frame_counters.get(obj_name, 0) - 1)
                 action = HOIAction.APPROACH
             else:
                 self.contact_frame_counters[obj_name] = 0
                 action = HOIAction.IDLE
 
-            # Check Extraction condition for small boxes
-            if obj_name in ("red_box", "yellow_box"):
-                # Centroid outside container boundary (e.g. pulled up or sideways)
+            # Check Extraction condition for manipulable items
+            if obj_name not in ("container_box", "container_lid"):
+                # Check 2D bounding box containment if both boxes are present
+                is_outside_2d = False
+                if cont and cont.bbox and obj.bbox:
+                    obj_cx = (obj.bbox.xmin + obj.bbox.xmax) / 2.0
+                    obj_cy = (obj.bbox.ymin + obj.bbox.ymax) / 2.0
+                    # Margin around container
+                    if (obj_cx < cont.bbox.xmin + 10 or obj_cx > cont.bbox.xmax - 10 or
+                        obj_cy < cont.bbox.ymin + 10 or obj_cy > cont.bbox.ymax - 10):
+                        is_outside_2d = True
+
+                # Centroid outside container boundary in rack 3D space
                 delta_y = abs(obj.pos_rack.y - cont_pos.y)
                 delta_x = abs(obj.pos_rack.x - cont_pos.x)
                 
-                if delta_x > 0.18 or delta_y > 0.15:
+                if delta_x > 0.18 or delta_y > 0.15 or is_outside_2d:
                     obj.is_inside_container = False
                     if action == HOIAction.GRASP:
                         action = HOIAction.EXTRACT
@@ -105,7 +125,7 @@ class HARAgent:
                     hand_name="right_hand",
                     distance_m=dist,
                     action=action,
-                    duration_frames=self.contact_frame_counters[obj_name]
+                    duration_frames=self.contact_frame_counters.get(obj_name, 0)
                 ))
                 primary_activity = f"{action.value} {obj_name.replace('_', ' ').upper()}"
 

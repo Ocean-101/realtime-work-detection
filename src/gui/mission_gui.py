@@ -4,6 +4,7 @@ Native desktop dashboard displaying live annotated camera feed,
 active procedural step checklist, telemetry diagnostics, and manual controls.
 """
 
+import json
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
@@ -63,15 +64,38 @@ class MissionControlGUI:
         sidebar_frame.pack(side="right", fill="y", padx=(0, 0))
         sidebar_frame.pack_propagate(False)
 
-        # Steps Header
+        # Steps Header with Restart Button
+        steps_header_frame = tk.Frame(sidebar_frame, bg="#101622")
+        steps_header_frame.pack(fill="x", padx=15, pady=(15, 10))
+
         steps_title = tk.Label(
-            sidebar_frame,
-            text="PROCEDURAL CHECKLIST (DETERMINISTIC FSM)",
+            steps_header_frame,
+            text="PROCEDURAL CHECKLIST",
             font=("Orbitron", 10, "bold"),
             fg="#ffffff",
             bg="#101622"
         )
-        steps_title.pack(anchor="w", padx=15, pady=(15, 10))
+        steps_title.pack(side="left")
+
+        self.reset_requested = False
+
+        def _on_restart():
+            self.reset_requested = True
+
+        restart_btn = tk.Button(
+            steps_header_frame,
+            text="🔄 RESTART TEST",
+            font=("Consolas", 8, "bold"),
+            fg="#000000",
+            bg="#00f0ff",
+            activebackground="#00e676",
+            command=_on_restart,
+            padx=6,
+            pady=2,
+            bd=0,
+            cursor="hand2"
+        )
+        restart_btn.pack(side="right")
 
         self.step_labels = []
         try:
@@ -154,6 +178,12 @@ class MissionControlGUI:
             pass
         self.root = None
 
+    def check_reset_requested(self) -> bool:
+        if self.reset_requested:
+            self.reset_requested = False
+            return True
+        return False
+
     def is_alive(self) -> bool:
         try:
             return bool(self.root and self.root.winfo_exists())
@@ -181,7 +211,10 @@ class MissionControlGUI:
             return
 
         for idx, lbl in enumerate(self.step_labels):
-            if idx == step_idx:
+            if step_idx == 4:
+                lbl.configure(text=lbl.cget("text").replace("[ ]", "[OK]").replace("[>>]", "[OK]"),
+                              fg="#000000", bg="#00e676")
+            elif idx == step_idx:
                 lbl.configure(text=lbl.cget("text").replace("[ ]", "[>>]").replace("[OK]", "[>>]"),
                               fg="#000000", bg="#00f0ff")
             elif idx < step_idx:

@@ -34,6 +34,15 @@ class ValidationAgent:
         self.step_start_time: float = time.time()
         self.stall_timeout_sec: float = 60.0
 
+    def reset(self):
+        """Resets the state machine back to IDLE (Step 0) for a fresh real-time test run."""
+        self.current_step = FSMStep.IDLE
+        self.debounce_counter = 0
+        self.candidate_step = None
+        self.anomaly_status = AnomalyType.NONE
+        self.anomaly_message = ""
+        self.step_start_time = time.time()
+
     def evaluate_step(
         self,
         objects: Dict[str, ExperimentObject],
@@ -76,7 +85,7 @@ class ValidationAgent:
             # -----------------------------------------------------------------
             # Step 0: IDLE -> Awaiting Box Open
             if self.current_step == FSMStep.IDLE:
-                if lid_angle >= 35.0:
+                if lid_angle >= 28.0:
                     self._accumulate_debounce(FSMStep.BOX_OPENED)
                     if self.debounce_counter >= self.debounce_required:
                         self.current_step = FSMStep.BOX_OPENED
@@ -93,13 +102,13 @@ class ValidationAgent:
                 if lid_angle < 15.0:
                     self.anomaly_status = AnomalyType.ERROR_SKIP
                     self.anomaly_message = "Warning: Step skipped. Please extract the object before closing the box."
-                    self._reset_debounce()
+                    self._reset_debounce(soft=False)
                     return self.current_step, 0, self.anomaly_status, self.anomaly_message, None
 
-                # Check if any object is extracted outside the box
+                # Check if any manipulable object is extracted outside the box
                 extracted = False
                 for name, obj in objects.items():
-                    if name != "container_box" and (not obj.is_inside_container or obj.state == EntityState.EXTRACTED):
+                    if name not in ("container_box", "container_lid") and (not obj.is_inside_container or obj.state == EntityState.EXTRACTED):
                         extracted = True
                         break
 
@@ -118,12 +127,15 @@ class ValidationAgent:
             elif self.current_step == FSMStep.OBJECT_EXTRACTED:
                 # Check if object has returned back inside container
                 all_inside = True
+                found_target = False
                 for name, obj in objects.items():
-                    if name != "container_box" and not obj.is_inside_container:
-                        all_inside = False
-                        break
+                    if name not in ("container_box", "container_lid"):
+                        found_target = True
+                        if not obj.is_inside_container:
+                            all_inside = False
+                            break
 
-                if all_inside and lid_angle >= 30.0:
+                if (found_target and all_inside and lid_angle >= 25.0) or (all_inside and lid_angle >= 35.0):
                     self._accumulate_debounce(FSMStep.OBJECT_RETURNED)
                     if self.debounce_counter >= self.debounce_required:
                         self.current_step = FSMStep.OBJECT_RETURNED
@@ -136,12 +148,13 @@ class ValidationAgent:
 
             # Step 3: OBJECT_RETURNED -> Awaiting Box Close
             elif self.current_step == FSMStep.OBJECT_RETURNED:
-                if lid_angle < 20.0:
+                lid_docked = ("container_lid" not in objects) or (lid_angle < 28.0)
+                if lid_docked:
                     self._accumulate_debounce(FSMStep.COMPLETE)
                     if self.debounce_counter >= self.debounce_required:
                         self.current_step = FSMStep.COMPLETE
                         self.candidate_step = None
-                        self.debounce_counter = 0
+                        self.debounce_counter = self.debounce_required
                         self.step_start_time = now
                         transition_committed = "BOX_CLOSED"
                 else:
@@ -229,6 +242,11 @@ class ValidationAgent:
             self.candidate_step = target
             self.debounce_counter = 1
 
-    def _reset_debounce(self):
-        self.candidate_step = None
-        self.debounce_counter = 0
+    def _reset_debounce(self, soft: bool = True):
+        if soft and self.debounce_counter > 0:
+            self.debounce_counter -= 1
+            if self.debounce_counter == 0:
+                self.candidate_step = None
+        else:
+            self.candidate_step = None
+            self.debounce_counter = 0

@@ -4,6 +4,7 @@ Detects experimental components (Container, Lid, Red Box, Yellow Box, Hands)
 and extracts 3D skeletal keypoints in camera space using PhysAstro-Pose principles.
 """
 
+import os
 import math
 import json
 import numpy as np
@@ -22,7 +23,11 @@ from src.core.types import (
 class PerceptionAgent:
     """Perception Agent executing object detection and 3D human pose recovery."""
 
-    def __init__(self, calib_path: str = "configs/camera_calib.json"):
+    def __init__(
+        self,
+        calib_path: str = "configs/camera_calib.json",
+        model_path: Optional[str] = "models/detector_offline.pt"
+    ):
         # Load camera intrinsics
         with open(calib_path, "r") as f:
             calib_data = json.load(f)
@@ -41,6 +46,18 @@ class PerceptionAgent:
 
         self.last_lid_angle = 0.0
 
+        # Offline YOLOv8 Deep Neural Object Detector
+        self.model = None
+        if model_path and os.path.exists(model_path):
+            try:
+                import importlib
+                ultralytics_pkg = importlib.import_module("ultralytics")
+                YOLO = getattr(ultralytics_pkg, "YOLO")
+                self.model = YOLO(model_path)
+                print(f"[Perception Agent] Offline YOLOv8 detector engaged: {model_path}")
+            except Exception as e:
+                print(f"[Perception Agent] Offline model note: {e}. Active with contour heuristics.")
+
     def process_frame(
         self,
         frame: np.ndarray,
@@ -54,58 +71,132 @@ class PerceptionAgent:
             - lid_angle: Measured container lid angle in degrees
         """
         h, w, _ = frame.shape
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        
         objects: Dict[str, ExperimentObject] = {}
+        hand_bbox = None
+        hand_center = (0.0, 0.0)
 
-        # 1. Detect Red Box (HSV: 0-10 & 170-180)
-        mask_r1 = cv2.inRange(hsv, np.array([0, 90, 70]), np.array([10, 255, 255]))
-        mask_r2 = cv2.inRange(hsv, np.array([170, 90, 70]), np.array([180, 255, 255]))
-        mask_red = cv2.bitwise_or(mask_r1, mask_r2)
-        red_bbox, red_center = self._extract_largest_bbox(mask_red, "red_box", 2, min_area=400)
-        if red_bbox:
-            red_cam = self._pixel_to_camera_coord(red_center[0], red_center[1], depth_m=1.15)
-            objects["red_box"] = ExperimentObject(
-                name="red_box",
-                class_name="red_box",
-                bbox=red_bbox,
-                pos_rack=red_cam # Will be transformed by Fusion Agent
-            )
+        # 1. Attempt Offline Neural Detector Inference
+        if self.model is not None:
+            try:
+                results = self.model(frame, verbose=False, conf=0.20)
+                if results and len(results) > 0 and results[0].boxes:
+                    class_names = {0: "container_box", 1: "container_lid", 2: "component_box", 3: "astronaut_hand"}
+                    for box in results[0].boxes:
+                        cls_id = int(box.cls[0].item())
+                        conf = float(box.conf[0].item())
+                        bx1, by1, bx2, by2 = box.xyxy[0].tolist()
+                        name = class_names.get(cls_id, f"obj_{cls_id}")
+                        b = BBox2D(
+                            xmin=float(bx1), ymin=float(by1),
+                            xmax=float(bx2), ymax=float(by2),
+                            confidence=conf, class_id=cls_id, class_name=name
+                        )
+                        center = ((bx1 + bx2) / 2.0, (by1 + by2) / 2.0)
+                        if cls_id == 3:
+                            hand_bbox = b
+                            hand_center = center
+                        else:
+                            obj_cam = self._pixel_to_camera_coord(center[0], center[1], depth_m=1.20)
+                            objects[name] = ExperimentObject(name=name, class_name=name, bbox=b, pos_rack=obj_cam)
+            except Exception:
+                pass
 
-        # 2. Detect Yellow Box (HSV: 18-35)
-        mask_yellow = cv2.inRange(hsv, np.array([18, 100, 100]), np.array([35, 255, 255]))
-        yellow_bbox, yellow_center = self._extract_largest_bbox(mask_yellow, "yellow_box", 3, min_area=400)
-        if yellow_bbox:
-            yellow_cam = self._pixel_to_camera_coord(yellow_center[0], yellow_center[1], depth_m=1.15)
-            objects["yellow_box"] = ExperimentObject(
-                name="yellow_box",
-                class_name="yellow_box",
-                bbox=yellow_bbox,
-                pos_rack=yellow_cam
-            )
+        # 2. Extract bounding box of container if present from detector
+        cont_bbox = objects["container_box"].bbox if "container_box" in objects else None
 
-        # 3. Detect Astronaut Glove / Hand (High value, low saturation, off-white)
-        mask_hand = cv2.inRange(hsv, np.array([0, 0, 180]), np.array([180, 50, 255]))
-        # Clean mask
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        mask_hand = cv2.morphologyEx(mask_hand, cv2.MORPH_OPEN, kernel)
-        hand_bbox, hand_center = self._extract_largest_bbox(mask_hand, "astronaut_hand", 4, min_area=600)
+        # 3. Fallback to HSV Contour Heuristics if needed
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        # 4. Detect Container Box & Lid
-        # Container is metallic dark gray (low saturation, mid value)
-        mask_cont = cv2.inRange(hsv, np.array([0, 0, 40]), np.array([180, 70, 160]))
-        cont_bbox, cont_center = self._extract_largest_bbox(mask_cont, "container_box", 0, min_area=8000)
-        if cont_bbox:
-            cont_cam = self._pixel_to_camera_coord(cont_center[0], cont_center[1], depth_m=1.20)
-            objects["container_box"] = ExperimentObject(
-                name="container_box",
-                class_name="container_box",
-                bbox=cont_bbox,
-                pos_rack=cont_cam
-            )
+        # Detect Red Box (HSV: 0-10 & 170-180) if not detected
+        if "red_box" not in objects:
+            mask_r1 = cv2.inRange(hsv, np.array([0, 90, 70]), np.array([10, 255, 255]))
+            mask_r2 = cv2.inRange(hsv, np.array([170, 90, 70]), np.array([180, 255, 255]))
+            mask_red = cv2.bitwise_or(mask_r1, mask_r2)
+            red_bbox, red_center = self._extract_largest_bbox(mask_red, "red_box", 2, min_area=350)
+            if red_bbox:
+                red_cam = self._pixel_to_camera_coord(red_center[0], red_center[1], depth_m=1.15)
+                objects["red_box"] = ExperimentObject(
+                    name="red_box",
+                    class_name="red_box",
+                    bbox=red_bbox,
+                    pos_rack=red_cam
+                )
 
-        # Compute Lid Angle based on top edge contours or relative positions
-        lid_angle = self._estimate_lid_angle(frame, cont_bbox)
+        # Detect Yellow Box (HSV: 18-35) if not detected
+        if "yellow_box" not in objects:
+            mask_yellow = cv2.inRange(hsv, np.array([18, 100, 100]), np.array([35, 255, 255]))
+            yellow_bbox, yellow_center = self._extract_largest_bbox(mask_yellow, "yellow_box", 3, min_area=350)
+            if yellow_bbox:
+                yellow_cam = self._pixel_to_camera_coord(yellow_center[0], yellow_center[1], depth_m=1.15)
+                objects["yellow_box"] = ExperimentObject(
+                    name="yellow_box",
+                    class_name="yellow_box",
+                    bbox=yellow_bbox,
+                    pos_rack=yellow_cam
+                )
+
+        # Detect any extracted component item (blue/cyan/green) if neither red nor yellow box detected
+        if not any(k in objects for k in ("component_box", "red_box", "yellow_box")):
+            mask_blue = cv2.inRange(hsv, np.array([90, 70, 50]), np.array([135, 255, 255]))
+            mask_green = cv2.inRange(hsv, np.array([36, 60, 50]), np.array([85, 255, 255]))
+            mask_item = cv2.bitwise_or(mask_blue, mask_green)
+            item_bbox, item_center = self._extract_largest_bbox(mask_item, "component_box", 2, min_area=350)
+            if item_bbox:
+                item_cam = self._pixel_to_camera_coord(item_center[0], item_center[1], depth_m=1.15)
+                objects["component_box"] = ExperimentObject(
+                    name="component_box",
+                    class_name="component_box",
+                    bbox=item_bbox,
+                    pos_rack=item_cam
+                )
+
+        # Detect Glove / Bare Human Hand (combining skin-tone + white glove ranges)
+        if not hand_bbox:
+            mask_skin1 = cv2.inRange(hsv, np.array([0, 30, 60]), np.array([25, 200, 255]))
+            mask_skin2 = cv2.inRange(hsv, np.array([165, 30, 60]), np.array([180, 200, 255]))
+            mask_glove = cv2.inRange(hsv, np.array([0, 0, 180]), np.array([180, 50, 255]))
+            mask_hand = cv2.bitwise_or(cv2.bitwise_or(mask_skin1, mask_skin2), mask_glove)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            mask_hand = cv2.morphologyEx(mask_hand, cv2.MORPH_OPEN, kernel)
+            hand_bbox, hand_center = self._extract_largest_bbox(mask_hand, "astronaut_hand", 4, min_area=500)
+
+        # Detect Container Box if not detected by neural model
+        if not cont_bbox:
+            mask_cont_dark = cv2.inRange(hsv, np.array([0, 0, 30]), np.array([180, 80, 160]))
+            mask_cont_brown = cv2.inRange(hsv, np.array([8, 30, 40]), np.array([35, 200, 240]))
+            mask_cont = cv2.bitwise_or(mask_cont_dark, mask_cont_brown)
+            cont_bbox, cont_center = self._extract_largest_bbox(mask_cont, "container_box", 0, min_area=4000)
+            if cont_bbox:
+                cont_cam = self._pixel_to_camera_coord(cont_center[0], cont_center[1], depth_m=1.20)
+                objects["container_box"] = ExperimentObject(
+                    name="container_box",
+                    class_name="container_box",
+                    bbox=cont_bbox,
+                    pos_rack=cont_cam
+                )
+
+        # Compute Lid Angle based on container_lid presence or vertical elevation
+        if "container_lid" in objects:
+            lid_obj = objects["container_lid"]
+            if cont_bbox and lid_obj.bbox:
+                # If lid is above container, calculate angle based on vertical elevation
+                elevation = max(0, cont_bbox.ymin - lid_obj.bbox.ymin)
+                if elevation < 25.0:
+                    target_angle = 0.0
+                else:
+                    target_angle = min(85.0, 30.0 + (elevation / 110.0) * 55.0)
+            else:
+                target_angle = 60.0
+            self.last_lid_angle = 0.6 * self.last_lid_angle + 0.4 * target_angle
+            lid_angle = self.last_lid_angle
+        else:
+            # Fallback: estimate lid elevation using edge density above container box
+            if cont_bbox:
+                target_angle = self._estimate_lid_angle(frame, cont_bbox)
+            else:
+                target_angle = 0.0
+            self.last_lid_angle = 0.6 * self.last_lid_angle + 0.4 * target_angle
+            lid_angle = self.last_lid_angle
 
         # Construct 3D Astronaut Pose in Camera Space
         pose = self._estimate_3d_pose(hand_bbox, hand_center, w, h)

@@ -135,6 +135,15 @@ class DigitalTwinAgent:
             cv2.rectangle(canvas, (yx - 16, yy - 14), (yx + 16, yy + 14), (255, 255, 255), 1)
             cv2.putText(canvas, "YEL", (yx - 12, yy + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (10, 10, 10), 1)
 
+        # Draw Component Box (Box-Return Experiment)
+        if "component_box" in entities:
+            c_info = entities["component_box"]
+            cx = int(wb_cx if c_info["is_inside_container"] else wb_cx - 110)
+            cy = int(cb_y1 + 15 if c_info["is_inside_container"] else cb_y1 - 40)
+            cv2.rectangle(canvas, (cx - 20, cy - 14), (cx + 20, cy + 14), (255, 140, 0), -1)
+            cv2.rectangle(canvas, (cx - 20, cy - 14), (cx + 20, cy + 14), (255, 255, 255), 1)
+            cv2.putText(canvas, "COMP", (cx - 16, cy + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
         # Draw Astronaut Rig Skeleton
         joints = scene_graph["astronaut"]["joints"]
         if "wrist" in joints:
