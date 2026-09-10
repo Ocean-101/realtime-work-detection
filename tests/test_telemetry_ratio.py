@@ -15,9 +15,9 @@ class TestTelemetryCompression(unittest.TestCase):
 
         # Log typical 30-minute session events (~10 milestone lines)
         logger.log_event(0, 0, "IDLE", "SYSTEM_INIT", tts_prompt="Open container box")
-        logger.log_event(375, 1, "CONTAINER_OPEN", "LID_OPENED", tts_prompt="Extract red box")
-        logger.log_event(1120, 2, "RED_EXTRACTED", "RED_BOX_EXTRACTED", tts_prompt="Extract yellow box")
-        logger.log_event(1850, 3, "COMPLETE", "EXPERIMENT_SUCCESS", tts_prompt="Procedure complete")
+        logger.log_event(375, 1, "BOX_OPENED", "BOX_OPENED", tts_prompt="Extract object")
+        logger.log_event(1120, 2, "OBJECT_EXTRACTED", "OBJECT_EXTRACTED", tts_prompt="Return object")
+        logger.log_event(1850, 4, "COMPLETE", "BOX_CLOSED", tts_prompt="Procedure complete")
 
         logger.close()
 

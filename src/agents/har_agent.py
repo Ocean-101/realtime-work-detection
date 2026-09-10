@@ -27,8 +27,6 @@ class HARAgent:
         self.contact_frame_counters: Dict[str, int] = {
             "container_box": 0,
             "container_lid": 0,
-            "red_box": 0,
-            "yellow_box": 0,
             "component_box": 0
         }
         self.extraction_threshold_y = 0.20 # Metric meters offset relative to container
@@ -89,30 +87,36 @@ class HARAgent:
 
             # Check Extraction condition for manipulable items
             if obj_name not in ("container_box", "container_lid"):
-                # Check 2D bounding box containment if both boxes are present
-                is_outside_2d = False
+                is_outside = False
                 if cont and cont.bbox and obj.bbox:
                     obj_cx = (obj.bbox.xmin + obj.bbox.xmax) / 2.0
                     obj_cy = (obj.bbox.ymin + obj.bbox.ymax) / 2.0
-                    # Margin around container
-                    if (obj_cx < cont.bbox.xmin + 10 or obj_cx > cont.bbox.xmax - 10 or
-                        obj_cy < cont.bbox.ymin + 10 or obj_cy > cont.bbox.ymax - 10):
-                        is_outside_2d = True
+                    # An object is extracted if lifted ABOVE the container (y < container_top)
+                    # or outside lateral boundaries
+                    if (obj_cy < cont.bbox.ymin - 10 or 
+                        obj_cx < cont.bbox.xmin - 30 or 
+                        obj_cx > cont.bbox.xmax + 30):
+                        is_outside = True
+                    else:
+                        is_outside = False
+                else:
+                    delta_y = obj.pos_rack.y - cont_pos.y
+                    delta_x = abs(obj.pos_rack.x - cont_pos.x)
+                    if delta_x > 0.22 or delta_y < -0.15:
+                        is_outside = True
+                    else:
+                        is_outside = False
 
-                # Centroid outside container boundary in rack 3D space
-                delta_y = abs(obj.pos_rack.y - cont_pos.y)
-                delta_x = abs(obj.pos_rack.x - cont_pos.x)
-                
-                if delta_x > 0.18 or delta_y > 0.15 or is_outside_2d:
+                if is_outside:
                     obj.is_inside_container = False
-                    if action == HOIAction.GRASP:
+                    if action in (HOIAction.GRASP, HOIAction.CONTACT):
                         action = HOIAction.EXTRACT
                         obj.state = EntityState.EXTRACTED
                     else:
                         obj.state = EntityState.RELEASED
                 else:
                     obj.is_inside_container = True
-                    if action == HOIAction.GRASP:
+                    if action in (HOIAction.GRASP, HOIAction.CONTACT):
                         obj.state = EntityState.GRASPED
                     elif action == HOIAction.APPROACH:
                         obj.state = EntityState.APPROACHED

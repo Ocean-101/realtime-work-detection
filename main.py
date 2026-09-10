@@ -22,7 +22,7 @@ import numpy as np
 from src.core.types import FSMStep, AnomalyType
 from src.core.shared_memory import DigitalTwinBlackboard
 
-# 8 Specialized Agents
+# 8 Specialized Agents + Real-Time Local LLM Verifier
 from src.agents.perception_agent import PerceptionAgent
 from src.agents.imu_agent import IMUAgent
 from src.agents.fusion_agent import FusionAgent
@@ -31,17 +31,19 @@ from src.agents.digital_twin_agent import DigitalTwinAgent
 from src.agents.validation_agent import ValidationAgent
 from src.agents.reasoning_agent import ReasoningAgent
 from src.agents.monitoring_agent import MonitoringAgent
+from src.llm.realtime_llm_verifier import RealtimeLLMVerifier
 
 
 def run_orchestrator(
-    source="clip.mp4",
+    source="clip1.mp4",
     config_path=None,
     use_desktop_gui=False,
     show_window=True,
     enable_tts=True,
     enable_streaming=True,
     stream_port=8080,
-    max_frames=None
+    max_frames=None,
+    realtime_feed_dir="realtime_feed"
 ):
     print("=" * 70)
     print("   BHARATIYA ANTARIKSH STATION (BAS) - ON-BOARD HAR MULTI-AGENT SYSTEM")
@@ -49,19 +51,21 @@ def run_orchestrator(
     print("   ISRO SIH Problem Statement #26174")
     print("=" * 70)
 
-    # Automatically select FSM config if not explicitly provided
+    # Default to Box Object Extraction & Return FSM protocol
     if config_path is None:
-        if "nominal" in str(source) or "anomaly" in str(source):
-            config_path = "configs/experiment_fsm.json"
-        else:
-            config_path = "configs/box_return_fsm.json"
+        config_path = "configs/box_return_fsm.json"
 
     print(f"[Orchestrator] Active Procedure Protocol: {config_path}")
+    print(f"[Orchestrator] Dedicated Real-Time Feed Directory: '{realtime_feed_dir}/'")
 
     # 1. Initialize Shared Memory Blackboard
     blackboard = DigitalTwinBlackboard()
 
-    # 2. Instantiate the 8 Specialized Agents
+    # 2. Instantiate Real-Time Asynchronous Local LLM Verifier (Ollama Qwen 2.5)
+    print("[Orchestrator] Engaging Local LLM Real-Time Verifier (qwen2.5:1.5b @ http://localhost:11434)...")
+    llm_verifier = RealtimeLLMVerifier()
+
+    # 3. Instantiate the 8 Specialized Agents
     print("[Orchestrator] Initializing 8 Specialized Agents...")
     agent_perception = PerceptionAgent()
     agent_imu = IMUAgent()
@@ -73,7 +77,8 @@ def run_orchestrator(
     agent_monitoring = MonitoringAgent(
         enable_tts=enable_tts,
         enable_streaming=enable_streaming,
-        stream_port=stream_port
+        stream_port=stream_port,
+        realtime_feed_dir=realtime_feed_dir
     )
 
     # Optional Desktop GUI
@@ -82,9 +87,12 @@ def run_orchestrator(
         try:
             from src.gui.mission_gui import MissionControlGUI
             desktop_gui = MissionControlGUI()
-            print("[Orchestrator] Desktop Mission Control GUI initialized.")
+            # Suppress duplicate floating OpenCV window to ensure only 1 unified window opens
+            show_window = False
+            print("[Orchestrator] Desktop Mission Control GUI initialized (single unified window).")
         except Exception as e:
-            print(f"[Orchestrator] Desktop GUI warning: {e}. Falling back to Web/Headless mode.")
+            print(f"[Orchestrator] Desktop GUI warning: {e}. Falling back to Web/OpenCV mode.")
+            show_window = True
 
     # 3. Setup Video Source
     if str(source).isdigit():
@@ -233,6 +241,24 @@ def run_orchestrator(
             active_hoi, objects_state, current_activity = agent_har.evaluate_interactions(
                 fused_pose, objects_rack, lid_angle
             )
+            # Push Telemetry Snapshot to Real-Time Local LLM Verifier
+            comp_obj = objects_state.get("component_box")
+            is_inside = comp_obj.is_inside_container if comp_obj else True
+            w_joint = fused_pose.joints.get("wrist")
+            h_dist = w_joint.pos_rack.distance_to(comp_obj.pos_rack) if (w_joint and comp_obj) else 0.50
+            primary_hoi = active_hoi[0].action.value if active_hoi else "IDLE"
+
+            llm_verifier.push_telemetry(
+                frame_id=frame_id,
+                step=agent_validation.current_step,
+                activity=current_activity,
+                lid_angle=lid_angle,
+                is_inside=is_inside,
+                hoi_action=primary_hoi,
+                hand_dist_m=h_dist,
+                anomaly=agent_validation.anomaly_status
+            )
+            llm_verif = llm_verifier.get_latest_verification()
 
             # AGENT 5: Digital Twin Agent (3D Scene Synchronization & Render)
             scene_graph = agent_twin.sync_scene_state(
@@ -240,9 +266,9 @@ def run_orchestrator(
             )
             twin_canvas = agent_twin.render_digital_twin_canvas(scene_graph)
 
-            # AGENT 6: Validation Agent (Deterministic FSM + 15-frame Debounce)
+            # AGENT 6: Validation Agent (Deterministic FSM + Adaptive Debounce + Local LLM Consensus)
             step, deb_count, anomaly, anomaly_msg, trans_event = agent_validation.evaluate_step(
-                objects_state, lid_angle, active_hoi, frame_id
+                objects_state, lid_angle, active_hoi, frame_id, llm_verification=llm_verif
             )
 
             # AGENT 7: Reasoning & Guidance Agent (Next-step suggestions + Anomaly alerts)
@@ -258,6 +284,7 @@ def run_orchestrator(
             blackboard.update_pose(fused_pose)
             blackboard.update_hoi(active_hoi, current_activity)
             blackboard.update_fsm_state(step, deb_count, anomaly, anomaly_msg, instruction)
+            blackboard.update_llm_verification(llm_verif)
 
             # AGENT 8: Monitoring Agent (Dual Video + Offline TTS + JSONL + HUD Overlay + Action Logger)
             annotated_frame = agent_monitoring.process_egress(
@@ -275,7 +302,8 @@ def run_orchestrator(
                 fps=fps,
                 latency_ms=latency_ms,
                 twin_canvas=twin_canvas,
-                current_activity=current_activity
+                current_activity=current_activity,
+                llm_verification=llm_verif
             )
 
             # On-Screen Video Feed Display (Native GUI Window)
@@ -311,6 +339,10 @@ def run_orchestrator(
                 log_snippet = f"[{trans_event}] {instruction}" if trans_event else None
                 desktop_gui.update_state(int(step), instruction, anomaly.value, log_snippet)
 
+            # Procedure Step Event Commit
+            if trans_event:
+                print(f"\n[PROCEDURE EVENT] Milestone Committed: {trans_event} -> Step {int(step)} ({step.name})")
+
             # Procedural Completion: Trigger Automated Offline Local LLM Audit
             if trans_event == "BOX_CLOSED":
                 print("\n" + "=" * 70)
@@ -319,43 +351,71 @@ def run_orchestrator(
                 try:
                     from src.llm.offline_llm_analyzer import analyze_session
                     audit_res = analyze_session()
-                    if audit_res.get("report"):
-                        print("\n[OFFLINE LLM AUDIT REPORT]:\n" + audit_res["report"])
+                    rep_path = audit_res.get("report_path", "experiments/llm_analysis_report.md")
+                    print(f"[Orchestrator] LLM Audit complete. Report saved to: {rep_path}\n")
                 except Exception as e:
                     print(f"[Orchestrator] LLM Audit notice: {e}")
 
-            # Console status line (updated every 30 frames)
-            if frame_id % 30 == 0:
-                print(f"[Frame {frame_id:04d}] Step: {step.name:15s} | Debounce: {deb_count:02d}/15 | "
-                      f"Doing: {current_activity:22s} | Next: {instruction[:25]} | FPS: {fps:.1f}")
+            # Clean in-place console status line
+            if frame_id % 5 == 0:
+                llm_step_int = llm_verif.get("verified_step", int(step))
+                llm_conf_pct = int(llm_verif.get("confidence", 0.90) * 100)
+                llm_disp = f"S{llm_step_int} ({llm_conf_pct}%)"
+                sys.stdout.write(
+                    f"\r[BAS] Frame {frame_id:04d} | Step {int(step)}: {step.name:16s} | LLM: {llm_disp:10s} | Deb: {deb_count:02d}/06 | FPS: {fps:4.1f}  "
+                )
+                sys.stdout.flush()
 
     except KeyboardInterrupt:
         print("\n[Orchestrator] Shutdown requested by user.")
+    except Exception as e:
+        print(f"\n[Orchestrator] Pipeline terminated: {e}")
     finally:
-        cap.release()
+        try:
+            llm_verifier.close()
+        except (Exception, KeyboardInterrupt):
+            pass
+
+        try:
+            if 'cap' in locals() and cap is not None:
+                cap.release()
+        except (Exception, KeyboardInterrupt):
+            pass
+
         try:
             cv2.destroyAllWindows()
-        except Exception:
+        except (Exception, KeyboardInterrupt):
             pass
-        agent_monitoring.close()
+
+        try:
+            agent_monitoring.close()
+        except (Exception, KeyboardInterrupt):
+            pass
         
         # Calculate final telemetry compression audit
-        total_time_sec = time.time() - t_start
-        ratio = agent_monitoring.telemetry.calculate_compression_ratio(total_time_sec)
-        print("=" * 70)
-        print("MISSION TELEMETRY AUDIT")
-        print(f"Total Session Duration : {total_time_sec:.1f} seconds")
-        print(f"Total Frames Processed : {frame_id} frames")
-        print(f"Structured JSONL Size  : {agent_monitoring.telemetry.total_bytes_written} bytes")
-        print(f"Empirical Compression : {ratio:,.1f} : 1")
-        print(f"Telemetry Log Saved At : {agent_monitoring.telemetry.output_path}")
-        print("=" * 70)
+        try:
+            total_time_sec = max(0.1, time.time() - t_start)
+            ratio = agent_monitoring.telemetry.calculate_compression_ratio(total_time_sec)
+            print("=" * 70)
+            print("MISSION TELEMETRY AUDIT")
+            print(f"Total Session Duration : {total_time_sec:.1f} seconds")
+            print(f"Total Frames Processed : {frame_id} frames")
+            print(f"Structured JSONL Size  : {agent_monitoring.telemetry.total_bytes_written} bytes")
+            print(f"Empirical Compression : {ratio:,.1f} : 1")
+            print(f"Telemetry Log Saved At : {agent_monitoring.telemetry.output_path}")
+            if hasattr(agent_monitoring, "csv_logger") and agent_monitoring.csv_logger:
+                print(f"3D/Twin CSV Telemetry : {agent_monitoring.csv_logger.output_path}")
+                print(f"Latest 3D Telemetry CSV: {agent_monitoring.csv_logger.latest_symlink_path}")
+                print(f"Dedicated Real-Time CSV: {agent_monitoring.csv_logger.realtime_current_path}")
+            print("=" * 70)
+        except (Exception, KeyboardInterrupt):
+            pass
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BAS Multi-Agent HAR Orchestrator")
-    parser.add_argument("--source", default="clip.mp4",
-                        help="Video source: camera index (0) or path to MP4 (default: clip.mp4)")
+    parser.add_argument("--source", default="clip1.mp4",
+                        help="Video source: camera index (0) or path to MP4 (default: clip1.mp4)")
     parser.add_argument("--config", default=None,
                         help="Path to FSM configuration file (default: auto-detected)")
     parser.add_argument("--desktop-gui", action="store_true",
@@ -370,15 +430,21 @@ if __name__ == "__main__":
                         help="Port for Web Mission Dashboard & RTSP/HTTP stream")
     parser.add_argument("--frames", type=int, default=None,
                         help="Maximum frames to process (useful for automated testing)")
+    parser.add_argument("--realtime-dir", type=str, default="realtime_feed",
+                        help="Dedicated folder for real-time video feed CSV telemetry (default: realtime_feed)")
     args = parser.parse_args()
 
-    run_orchestrator(
-        source=args.source,
-        config_path=args.config,
-        use_desktop_gui=args.desktop_gui,
-        show_window=not args.no_window,
-        enable_tts=not args.no_tts,
-        enable_streaming=not args.no_stream,
-        stream_port=args.port,
-        max_frames=args.frames
-    )
+    try:
+        run_orchestrator(
+            source=args.source,
+            config_path=args.config,
+            use_desktop_gui=args.desktop_gui,
+            show_window=not args.no_window,
+            enable_tts=not args.no_tts,
+            enable_streaming=not args.no_stream,
+            stream_port=args.port,
+            max_frames=args.frames,
+            realtime_feed_dir=args.realtime_dir
+        )
+    except KeyboardInterrupt:
+        sys.exit(0)

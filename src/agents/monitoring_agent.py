@@ -18,6 +18,7 @@ from src.core.types import (
 from src.audio.offline_tts import OfflineTTS
 from src.telemetry.jsonl_logger import JSONLTelemetryLogger
 from src.telemetry.action_session_logger import ActionSessionLogger
+from src.telemetry.csv_logger import RealtimeCSVTelemetryLogger
 from src.streaming.video_pipeline import DualVideoPipeline
 
 
@@ -30,10 +31,12 @@ class MonitoringAgent:
         enable_streaming: bool = True,
         stream_port: int = 8080,
         output_video_path: Optional[str] = None,
-        output_telemetry_path: Optional[str] = None
+        output_telemetry_path: Optional[str] = None,
+        realtime_feed_dir: str = "realtime_feed"
     ):
         self.tts = OfflineTTS() if enable_tts else None
         self.telemetry = JSONLTelemetryLogger(output_telemetry_path)
+        self.csv_logger = RealtimeCSVTelemetryLogger(realtime_feed_dir=realtime_feed_dir)
         self.action_logger = ActionSessionLogger()
         self.video_pipeline = DualVideoPipeline(
             local_output_path=output_video_path,
@@ -69,7 +72,8 @@ class MonitoringAgent:
         fps: float,
         latency_ms: float,
         twin_canvas: Optional[np.ndarray] = None,
-        current_activity: str = "IDLE"
+        current_activity: str = "IDLE",
+        llm_verification: Optional[Dict[str, Any]] = None
     ) -> np.ndarray:
         """
         Synthesizes audio alerts, logs session actions to JSON, and renders live HUD overlays.
@@ -93,7 +97,21 @@ class MonitoringAgent:
             anomaly=anomaly.value
         )
 
-        # 3. Emit Telemetry Records
+        # 3. Emit Frame-by-Frame CSV Telemetry for 3D & Digital Twin
+        self.csv_logger.log_frame(
+            frame_id=frame_id,
+            fps=fps,
+            step=current_step,
+            activity=current_activity,
+            anomaly=anomaly,
+            instruction=instruction,
+            lid_angle=lid_angle,
+            pose=fused_pose,
+            objects=objects,
+            llm_verification=llm_verification
+        )
+
+        # 4. Emit Milestone Telemetry Records
         if transition_event is not None:
             self.telemetry.log_event(
                 frame_id=frame_id,
@@ -119,7 +137,7 @@ class MonitoringAgent:
         # Periodic Heartbeat
         self.telemetry.log_heartbeat(frame_id, int(current_step), current_step.name, fps, latency_ms)
 
-        # 4. Composite Live Stream HUD Overlay
+        # 5. Composite Live Stream HUD Overlay
         annotated_frame = self._draw_hud(
             raw_frame=raw_frame,
             pose=fused_pose,
@@ -131,7 +149,8 @@ class MonitoringAgent:
             instruction=instruction,
             fps=fps,
             twin_canvas=twin_canvas,
-            current_activity=current_activity
+            current_activity=current_activity,
+            llm_verification=llm_verification
         )
 
         # 5. Dispatch to Dual Video Pipeline (Local MP4 + RTSP Stream + Web API)
@@ -140,7 +159,7 @@ class MonitoringAgent:
                 "step": int(current_step),
                 "step_name": current_step.name,
                 "debounce": debounce_count,
-                "debounce_max": 12,
+                "debounce_max": 6,
                 "anomaly": anomaly.value,
                 "instruction": instruction,
                 "transition_event": transition_event,
@@ -166,140 +185,200 @@ class MonitoringAgent:
         instruction: str,
         fps: float,
         twin_canvas: Optional[np.ndarray] = None,
-        current_activity: str = "IDLE"
+        current_activity: str = "IDLE",
+        llm_verification: Optional[Dict[str, Any]] = None
     ) -> np.ndarray:
         frame = raw_frame.copy()
         h, w, _ = frame.shape
 
-        # 1. Draw 2D Object Bounding Boxes
+        # Adaptive layout scaling based on resolution
+        scale = max(0.40, min(0.70, w / 1280.0))
+        thick = 1 if w < 1000 else 2
+        banner_h = max(34, min(50, int(h * 0.065)))
+        bot_h = max(32, min(48, int(h * 0.060)))
+
+        # 1. Draw 2D Object Bounding Boxes & Staggered Badges (Zero Overlap)
         color_map = {
             "container_box": (160, 160, 160),
             "container_lid": (0, 240, 200),
-            "component_box": (255, 140, 0),
-            "red_box": (40, 40, 240),
-            "yellow_box": (20, 220, 240)
+            "component_box": (255, 140, 0)
         }
+
+        occupied_badge_rects: List[Tuple[int, int, int, int]] = []
 
         for name, obj in objects.items():
             if obj.bbox:
                 bx1, by1 = int(obj.bbox.xmin), int(obj.bbox.ymin)
                 bx2, by2 = int(obj.bbox.xmax), int(obj.bbox.ymax)
                 col = color_map.get(name, (200, 200, 200))
-                cv2.rectangle(frame, (bx1, by1), (bx2, by2), col, 2)
-                
-                # Label badge
-                status_txt = f"{obj.name.upper()} [{obj.state.value}]"
-                cv2.rectangle(frame, (bx1, max(0, by1 - 22)), (bx1 + len(status_txt)*9 + 10, by1), col, -1)
-                cv2.putText(frame, status_txt, (bx1 + 5, max(15, by1 - 6)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.42, (10, 10, 10), 1)
+                cv2.rectangle(frame, (bx1, by1), (bx2, by2), col, max(1, int(1.5 * scale * 2)))
 
-        # 2. Draw Hand & 3D Pose Keypoints
+                # Exact text size calculation
+                status_txt = f"{obj.name.upper()} [{obj.state.value}]"
+                font_scale = max(0.34, scale * 0.85)
+                (tw, th), _ = cv2.getTextSize(status_txt, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+                pad_x, pad_y = 6, 4
+                badge_w = tw + pad_x * 2
+                badge_h = th + pad_y * 2
+
+                # Target position: Above the box if there is room below top banner, otherwise inside
+                rx1 = max(4, min(w - badge_w - 4, bx1))
+                if by1 - badge_h - 2 >= banner_h + 2:
+                    ry1 = by1 - badge_h - 2
+                else:
+                    ry1 = min(h - bot_h - badge_h - 2, by1 + 4)
+
+                # Collision resolution with previously placed badges (e.g. lid & container sharing coordinates)
+                for (ox1, oy1, ox2, oy2) in occupied_badge_rects:
+                    if not (rx1 + badge_w < ox1 or rx1 > ox2 or ry1 + badge_h < oy1 or ry1 > oy2):
+                        # Overlap detected! Shift downwards below the previous badge
+                        ry1 = min(h - bot_h - badge_h - 2, oy2 + 3)
+
+                rx2 = rx1 + badge_w
+                ry2 = ry1 + badge_h
+                occupied_badge_rects.append((rx1, ry1, rx2, ry2))
+
+                # Draw badge background and high-contrast text
+                cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), col, -1)
+                cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), (10, 10, 10), 1)
+                cv2.putText(
+                    frame, status_txt,
+                    (rx1 + pad_x, ry1 + th + pad_y - 1),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (10, 10, 10), 1, cv2.LINE_AA
+                )
+
+        # 2. Draw Hand & 3D Pose Keypoints with pill label
         wrist = pose.joints.get("wrist")
         if wrist:
-            # Reconstruct pixel from wrist camera coords
             wx = int(self.video_pipeline.resolution[0]/2 + wrist.pos_camera.x * 400) if self.video_pipeline else w//2
             wy = int(self.video_pipeline.resolution[1]/2 + wrist.pos_camera.y * 400) if self.video_pipeline else h//2
-            wx = max(10, min(w - 10, wx))
-            wy = max(10, min(h - 10, wy))
-            cv2.circle(frame, (wx, wy), 9, (0, 240, 255), -1)
-            cv2.putText(frame, "ASTRONAUT WRIST", (wx + 12, wy + 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 240, 255), 1)
+            wx = max(15, min(w - 15, wx))
+            wy = max(banner_h + 15, min(h - bot_h - 15, wy))
 
-        # 3. Top Mission Banner & Bottom Action Bar (Semi-transparent HUD overlay)
-        banner_h = 75
-        bot_h = 68
-        bot_col = (12, 16, 24)
-        if anomaly != AnomalyType.NONE:
-            bot_col = (35, 10, 25)
+            cv2.circle(frame, (wx, wy), max(5, int(8 * scale)), (0, 240, 255), -1)
+            cv2.circle(frame, (wx, wy), max(7, int(11 * scale)), (255, 255, 255), 1)
 
+            # Clean pill badge for astronaut wrist
+            w_txt = "ASTRONAUT WRIST"
+            w_scale = max(0.32, scale * 0.78)
+            (wtw, wth), _ = cv2.getTextSize(w_txt, cv2.FONT_HERSHEY_SIMPLEX, w_scale, 1)
+            wrx1 = max(4, min(w - wtw - 10, wx + 10))
+            wry1 = max(banner_h + 2, min(h - bot_h - wth - 8, wy - wth // 2 - 3))
+            wrx2 = wrx1 + wtw + 8
+            wry2 = wry1 + wth + 6
+
+            # Avoid collision with existing badges
+            for (ox1, oy1, ox2, oy2) in occupied_badge_rects:
+                if not (wrx1 + (wrx2 - wrx1) < ox1 or wrx1 > ox2 or wry1 + (wry2 - wry1) < oy1 or wry1 > oy2):
+                    wry1 = min(h - bot_h - (wry2 - wry1) - 2, oy2 + 3)
+                    wry2 = wry1 + wth + 6
+
+            sub = frame[wry1:wry2, wrx1:wrx2]
+            if sub.size > 0:
+                dark_rect = np.full_like(sub, 20)
+                cv2.addWeighted(sub, 0.25, dark_rect, 0.75, 0, sub)
+                cv2.rectangle(frame, (wrx1, wry1), (wrx2, wry2), (0, 240, 255), 1)
+                cv2.putText(
+                    frame, w_txt,
+                    (wrx1 + 4, wry1 + wth + 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, w_scale, (0, 240, 255), 1, cv2.LINE_AA
+                )
+
+        # 3. Streamlined Minimalist HUD Overlay (Header & Footer)
         overlay = frame.copy()
-        cv2.rectangle(overlay, (0, 0), (w, banner_h), (12, 16, 24), -1)
-        cv2.rectangle(overlay, (0, h - bot_h), (w, h), bot_col, -1)
-        cv2.addWeighted(overlay, 0.78, frame, 0.22, 0, frame)
+        cv2.rectangle(overlay, (0, 0), (w, banner_h), (8, 12, 18), -1)
+        cv2.rectangle(overlay, (0, h - bot_h), (w, h), (8, 12, 18), -1)
+        cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
 
-        cv2.line(frame, (0, banner_h), (w, banner_h), (0, 180, 255), 2)
-        border_col = (0, 0, 255) if anomaly != AnomalyType.NONE else (0, 180, 255)
-        cv2.line(frame, (0, h - bot_h), (w, h - bot_h), border_col, 2)
+        # Separator lines
+        sep_col = (0, 230, 120) if current_step == FSMStep.COMPLETE else ((0, 60, 220) if anomaly != AnomalyType.NONE else (0, 180, 230))
+        cv2.line(frame, (0, banner_h), (w, banner_h), sep_col, 1)
+        cv2.line(frame, (0, h - bot_h), (w, h - bot_h), sep_col, 1)
 
-        # Logo / Title
-        cv2.putText(frame, "BHARATIYA ANTARIKSH STATION (BAS) | ON-BOARD HAR ASSISTANT", (20, 28),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
-        
-        # Step Progress Pills (Box Object Extraction & Return Procedure)
-        steps = [
-            ("S0: IDLE", FSMStep.IDLE),
-            ("S1: OPEN BOX", FSMStep.BOX_OPENED),
-            ("S2: EXTRACT", FSMStep.OBJECT_EXTRACTED),
-            ("S3: RETURN", FSMStep.OBJECT_RETURNED),
-            ("S4: COMPLETE", FSMStep.COMPLETE)
-        ]
-        
-        px = 20
-        for label, step_val in steps:
-            if current_step == step_val:
-                p_col = (0, 220, 255) # Active
-                p_txt_col = (10, 10, 10)
-            elif current_step > step_val:
-                p_col = (40, 180, 50) # Completed
-                p_txt_col = (255, 255, 255)
-            else:
-                p_col = (45, 50, 60) # Future
-                p_txt_col = (160, 165, 175)
+        # Header Zone 1 (Left): Mission Identifier
+        title_txt = "BAS HAR" if w < 850 else "BAS HAR SYSTEM"
+        title_scale = max(0.38, scale * 0.90)
+        (tw, th), _ = cv2.getTextSize(title_txt, cv2.FONT_HERSHEY_SIMPLEX, title_scale, thick)
+        title_y = (banner_h + th) // 2
+        cv2.putText(frame, title_txt, (14, title_y), cv2.FONT_HERSHEY_SIMPLEX, title_scale, (255, 255, 255), thick, cv2.LINE_AA)
+        left_bound = 14 + tw + 14
 
-            p_w = len(label) * 9 + 20
-            cv2.rectangle(frame, (px, 38), (px + p_w, 64), p_col, -1)
-            cv2.rectangle(frame, (px, 38), (px + p_w, 64), (180, 190, 200), 1)
-            cv2.putText(frame, label, (px + 8, 56), cv2.FONT_HERSHEY_SIMPLEX, 0.42, p_txt_col, 1)
-            px += p_w + 12
+        # Header Zone 3 (Right): Telemetry Status
+        status_scale = max(0.34, scale * 0.82)
+        llm_s_tag = ""
+        if llm_verification:
+            llm_v_step = llm_verification.get("verified_step", int(current_step))
+            llm_s_tag = f" | LLM: S{llm_v_step}"
+        status_txt = f"FPS: {fps:.0f} | LID: {lid_angle:.0f}d | DEB: {debounce_count}/6{llm_s_tag}"
+        (sw, sh), _ = cv2.getTextSize(status_txt, cv2.FONT_HERSHEY_SIMPLEX, status_scale, 1)
+        status_x = max(left_bound + 10, w - sw - 14)
+        status_y = (banner_h + sh) // 2
+        cv2.putText(frame, status_txt, (status_x, status_y), cv2.FONT_HERSHEY_SIMPLEX, status_scale, (180, 215, 235), 1, cv2.LINE_AA)
+        right_bound = status_x - 14
 
-        # FPS & Telemetry status in top right
-        cv2.putText(frame, f"FPS: {fps:.1f} | DEBOUNCE: {debounce_count}/12", (w - 240, 26),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 200), 1)
-        
-        # Debounce progress bar
-        bar_w = 140
-        bar_h = 8
-        bx = w - 240
-        by = 34
-        cv2.rectangle(frame, (bx, by), (bx + bar_w, by + bar_h), (40, 45, 55), -1)
-        fill_w = int((min(12, debounce_count) / 12.0) * bar_w)
-        if fill_w > 0:
-            cv2.rectangle(frame, (bx, by), (bx + fill_w, by + bar_h), (0, 240, 255), -1)
-        cv2.rectangle(frame, (bx, by), (bx + bar_w, by + bar_h), (100, 120, 140), 1)
+        # Header Zone 2 (Center): Active Procedure Step (Guaranteed No Overlap)
+        step_labels = {
+            FSMStep.IDLE: "S0: STANDBY",
+            FSMStep.BOX_OPENED: "S1: CONTAINER OPEN",
+            FSMStep.OBJECT_EXTRACTED: "S2: OBJECT EXTRACTED",
+            FSMStep.OBJECT_RETURNED: "S3: OBJECT RETURNED",
+            FSMStep.COMPLETE: "S4: MISSION COMPLETE"
+        }
+        active_step_txt = step_labels.get(current_step, current_step.name)
+        step_scale = max(0.36, scale * 0.86)
+        (step_w, step_h), _ = cv2.getTextSize(active_step_txt, cv2.FONT_HERSHEY_SIMPLEX, step_scale, 1)
 
-        cv2.putText(frame, f"S-BAND JSONL: ACTIVE | LID: {lid_angle:.0f}deg", (w - 240, 58),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (180, 190, 200), 1)
-        
-        # Row 1: What I am Doing (Active Human Activity)
-        cv2.rectangle(frame, (16, h - 58), (196, h - 36), (0, 210, 255), -1)
-        cv2.putText(frame, "WHAT I AM DOING", (22, h - 42), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (10, 10, 10), 1)
-        act_display = current_activity if current_activity != "IDLE" else "OBSERVING WORKSPACE (IDLE)"
-        cv2.putText(frame, act_display, (208, h - 41), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 240, 255), 2)
+        # Calculate center position & clamp between left and right bounds
+        ideal_center_x = (w - step_w) // 2
+        center_x = max(left_bound, min(right_bound - step_w, ideal_center_x))
+        if center_x + step_w <= right_bound:
+            step_badge_col = (0, 230, 120) if current_step == FSMStep.COMPLETE else (0, 210, 255)
+            pill_pad_x = 8
+            pill_pad_y = 4
+            px1 = center_x - pill_pad_x
+            py1 = max(2, (banner_h - (step_h + pill_pad_y * 2)) // 2)
+            px2 = center_x + step_w + pill_pad_x
+            py2 = min(banner_h - 2, py1 + step_h + pill_pad_y * 2)
+            cv2.rectangle(frame, (px1, py1), (px2, py2), (20, 30, 45), -1)
+            cv2.rectangle(frame, (px1, py1), (px2, py2), step_badge_col, 1)
+            cv2.putText(
+                frame, active_step_txt,
+                (center_x, (banner_h + step_h) // 2),
+                cv2.FONT_HERSHEY_SIMPLEX, step_scale, step_badge_col, 1, cv2.LINE_AA
+            )
 
-        # Row 2: What I Have to Do (Next Procedural Step Guidance)
-        req_badge_col = (0, 180, 60) if anomaly == AnomalyType.NONE else (40, 40, 240)
-        cv2.rectangle(frame, (16, h - 28), (196, h - 6), req_badge_col, -1)
-        req_badge_text = "WHAT TO DO NEXT" if anomaly == AnomalyType.NONE else f"ALERT [{anomaly.value}]"
-        cv2.putText(frame, req_badge_text, (22, h - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 255), 1)
-        cv2.putText(frame, instruction, (208, h - 11), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 2)
+        # Footer: Action & Guidance Bar (Guaranteed No Overlap)
+        act_scale = max(0.36, scale * 0.85)
+        act_display = current_activity if current_activity != "IDLE" else "OBSERVING"
+        doing_txt = f"DOING: {act_display}"
+        (dw, dh), _ = cv2.getTextSize(doing_txt, cv2.FONT_HERSHEY_SIMPLEX, act_scale, 1)
+        bot_y = h - (bot_h - dh) // 2 - 2
 
-        # 5. Compact Picture-in-Picture Digital Twin Canvas in bottom right
-        if twin_canvas is not None:
-            th, tw = twin_canvas.shape[:2]
-            pip_w = min(260, max(160, int(w * 0.22)))
-            pip_h = int(th * (pip_w / tw))
-            pip_resized = cv2.resize(twin_canvas, (pip_w, pip_h))
-            
-            # Place neatly in bottom right above bottom action bar
-            py1 = h - bot_h - pip_h - 10
-            py2 = py1 + pip_h
-            px1 = w - pip_w - 10
-            px2 = px1 + pip_w
+        cv2.rectangle(frame, (10, h - bot_h + 4), (10 + dw + 12, h - 4), (20, 35, 50), -1)
+        cv2.rectangle(frame, (10, h - bot_h + 4), (10 + dw + 12, h - 4), (0, 220, 255), 1)
+        cv2.putText(frame, doing_txt, (16, bot_y), cv2.FONT_HERSHEY_SIMPLEX, act_scale, (0, 230, 255), 1, cv2.LINE_AA)
 
-            frame[py1:py2, px1:px2] = pip_resized
-            cv2.rectangle(frame, (px1, py1), (px2, py2), (0, 220, 255), 2)
-            cv2.putText(frame, "3D DIGITAL TWIN", (px1 + 6, py1 - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 220, 255), 1)
+        doing_end = 10 + dw + 22
+
+        # Guidance / Alert Text on the right with safe truncation
+        guide_col = (80, 100, 255) if anomaly != AnomalyType.NONE else (255, 255, 255)
+        prefix = "ALERT: " if anomaly != AnomalyType.NONE else "NEXT: "
+        full_guide = f"{prefix}{instruction}"
+
+        guide_scale = max(0.34, scale * 0.82)
+        avail_width = w - doing_end - 20
+
+        (gw, gh), _ = cv2.getTextSize(full_guide, cv2.FONT_HERSHEY_SIMPLEX, guide_scale, 1)
+        display_guide = full_guide
+        if gw > avail_width and avail_width > 60:
+            while len(display_guide) > 8:
+                display_guide = display_guide[:-4] + "..."
+                (gw, gh), _ = cv2.getTextSize(display_guide, cv2.FONT_HERSHEY_SIMPLEX, guide_scale, 1)
+                if gw <= avail_width:
+                    break
+
+        if avail_width > 40:
+            cv2.putText(frame, display_guide, (doing_end, bot_y), cv2.FONT_HERSHEY_SIMPLEX, guide_scale, guide_col, 1, cv2.LINE_AA)
 
         return frame
 
@@ -310,5 +389,7 @@ class MonitoringAgent:
             self.video_pipeline.close()
         if self.telemetry:
             self.telemetry.close()
+        if self.csv_logger:
+            self.csv_logger.close()
         if self.tts:
             self.tts.shutdown()

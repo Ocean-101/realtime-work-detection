@@ -176,8 +176,9 @@
       position: relative;
       background: #000;
       width: 100%;
-      height: calc(100vh - 280px);
-      min-height: 520px;
+      height: calc(100vh - 300px);
+      min-height: 440px;
+      max-height: 62vh;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -185,7 +186,8 @@
     }
     body.theater-mode .video-container {
       height: calc(100vh - 350px);
-      min-height: 600px;
+      min-height: 560px;
+      max-height: 78vh;
     }
     .video-container img {
       width: 100%;
@@ -195,37 +197,27 @@
       image-rendering: crisp-edges;
     }
 
-    /* Floating Real-Time HUD Badges on Video */
-    .stream-overlay-top-left {
-      position: absolute;
-      top: 14px;
-      left: 14px;
-      background: rgba(10, 15, 24, 0.88);
-      border: 1px solid var(--accent-cyan);
-      border-radius: 8px;
-      padding: 8px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      backdrop-filter: blur(8px);
-      pointer-events: none;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-    }
-    .step-pill {
+    /* Integrated Real-Time Step Header Pill */
+    .header-step-pill {
       font-family: 'Orbitron', sans-serif;
-      font-size: 0.85rem;
+      font-size: 0.78rem;
       font-weight: 800;
       color: #fff;
       display: flex;
       align-items: center;
       gap: 8px;
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid var(--accent-cyan);
+      padding: 5px 12px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
     }
     .pulse-dot {
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: var(--accent-cyan);
-      box-shadow: 0 0 10px var(--accent-cyan);
+      box-shadow: 0 0 8px var(--accent-cyan);
       animation: pulseGlow 1.2s infinite;
     }
     @keyframes pulseGlow {
@@ -233,22 +225,8 @@
       50% { transform: scale(1.3); opacity: 0.7; }
     }
 
-    .stream-overlay-top-right {
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      background: rgba(10, 15, 24, 0.88);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      padding: 8px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      backdrop-filter: blur(8px);
-      pointer-events: none;
-    }
     .debounce-track {
-      width: 130px;
+      width: 80px;
       height: 7px;
       background: rgba(255, 255, 255, 0.15);
       border-radius: 4px;
@@ -394,12 +372,14 @@
     .action-card.todo .action-card-tag { color: var(--accent-green); }
     .action-card.anomaly .action-card-tag { color: var(--accent-red); }
     .action-card-text {
-      font-size: 1.05rem;
+      font-size: 0.98rem;
       font-weight: 700;
       color: #fff;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      line-height: 1.45;
+      word-break: break-word;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
     }
 
     /* Offline LLM Audit Panel */
@@ -480,29 +460,31 @@
       <div class="card video-card">
         <div class="card-header">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-weight: 700;">PRIMARY PAYLOAD WEBCAM FEED (HD 720p)</span>
-            <span style="font-size: 0.72rem; color: var(--accent-green); background: rgba(0, 230, 118, 0.12); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(0, 230, 118, 0.3);">● ULTRA-LOW LATENCY</span>
+            <span style="font-weight: 700; letter-spacing: 0.5px;">PRIMARY PAYLOAD WEBCAM FEED</span>
+            <span style="font-size: 0.70rem; color: var(--accent-green); background: rgba(0, 230, 118, 0.12); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(0, 230, 118, 0.3);">● ULTRA-LOW LATENCY</span>
           </div>
-          <button id="btn-restart" class="restart-btn" onclick="restartTestSequence()">🔄 TEST AGAIN</button>
+
+          <!-- Live Step Pill in Dedicated Header Slot -->
+          <div class="header-step-pill" id="overlay-step-name">
+            <div class="pulse-dot"></div>
+            <span id="step-name-text">STEP 0: INITIALIZE WORKSPACE</span>
+          </div>
+
+          <!-- Debounce Gate Monitor & Controls -->
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-family: 'Orbitron', monospace; font-size: 0.70rem; font-weight: 700;">
+              <span style="color: var(--text-muted);">DEBOUNCE:</span>
+              <span id="overlay-deb-text" style="color: var(--accent-cyan);">0/12</span>
+              <div class="debounce-track">
+                <div class="debounce-fill" id="overlay-deb-bar"></div>
+              </div>
+            </div>
+            <button id="btn-restart" class="restart-btn" onclick="restartTestSequence()">🔄 TEST AGAIN</button>
+          </div>
         </div>
+
         <div class="video-container" id="stream-box">
           <img id="live-stream" src="/stream" alt="Live Camera Feed Overlay">
-
-          <!-- Live On-Video HUD Overlays -->
-          <div class="stream-overlay-top-left">
-            <div class="pulse-dot"></div>
-            <div class="step-pill" id="overlay-step-name">STEP 0: INITIALIZE WORKSPACE</div>
-          </div>
-
-          <div class="stream-overlay-top-right">
-            <div style="display: flex; justify-content: space-between; font-family: 'Orbitron', monospace; font-size: 0.72rem; font-weight: 700;">
-              <span>DEBOUNCE GATE</span>
-              <span id="overlay-deb-text" style="color: var(--accent-cyan);">0/12</span>
-            </div>
-            <div class="debounce-track">
-              <div class="debounce-fill" id="overlay-deb-bar"></div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -736,8 +718,12 @@
           3: "STEP 3: RETURN OBJECT INTO BOX",
           4: "STEP 4: PROCEDURAL COMPLETE"
         };
-        if (overlayStepName) {
-          overlayStepName.textContent = stepLabels[data.step] || `STEP ${data.step}: ${data.step_name}`;
+        const stepNameText = document.getElementById('step-name-text');
+        const sTxt = stepLabels[data.step] || `STEP ${data.step}: ${data.step_name}`;
+        if (stepNameText) {
+          stepNameText.textContent = sTxt;
+        } else if (overlayStepName) {
+          overlayStepName.textContent = sTxt;
         }
         if (overlayDebText) {
           overlayDebText.textContent = `${debVal}/${debMax}`;

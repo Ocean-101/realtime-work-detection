@@ -81,6 +81,12 @@ class MissionControlGUI:
 
         def _on_restart():
             self.reset_requested = True
+            for lbl in self.step_labels:
+                base_text = lbl.cget("text").replace("[OK]", "").replace("[>>]", "").replace("[ ]", "").strip()
+                lbl.configure(text=f"[ ] {base_text}", fg="#94a3b8", bg="#162032")
+            self.instruction_lbl.configure(text="System initialized. Please open the box.", fg="#00f0ff", bg="#0d1b2a")
+            self.log_text.delete("1.0", "end")
+            self.log_text.insert("end", "[RESET] Procedure reset to Step 0 (IDLE).\n")
 
         restart_btn = tk.Button(
             steps_header_frame,
@@ -196,8 +202,18 @@ class MissionControlGUI:
             return
         self.latest_frame = frame_bgr
         h, w, _ = frame_bgr.shape
-        target_w = 850
-        target_h = int(h * (target_w / w))
+
+        canvas_w = self.video_canvas.winfo_width()
+        canvas_h = self.video_canvas.winfo_height()
+        if canvas_w > 120 and canvas_h > 120:
+            scale_w = canvas_w / w
+            scale_h = canvas_h / h
+            scale = min(scale_w, scale_h)
+            target_w = max(100, int(w * scale))
+            target_h = max(100, int(h * scale))
+        else:
+            target_w = 850
+            target_h = int(h * (target_w / w))
 
         rgb = cv2.cvtColor(cv2.resize(frame_bgr, (target_w, target_h)), cv2.COLOR_BGR2RGB)
         img = Image.fromarray(rgb)
@@ -211,17 +227,15 @@ class MissionControlGUI:
             return
 
         for idx, lbl in enumerate(self.step_labels):
+            raw_txt = lbl.cget("text").replace("[OK]", "").replace("[>>]", "").replace("[ ]", "").strip()
             if step_idx == 4:
-                lbl.configure(text=lbl.cget("text").replace("[ ]", "[OK]").replace("[>>]", "[OK]"),
-                              fg="#000000", bg="#00e676")
+                lbl.configure(text=f"[OK] {raw_txt}", fg="#000000", bg="#00e676")
             elif idx == step_idx:
-                lbl.configure(text=lbl.cget("text").replace("[ ]", "[>>]").replace("[OK]", "[>>]"),
-                              fg="#000000", bg="#00f0ff")
+                lbl.configure(text=f"[>>] {raw_txt}", fg="#000000", bg="#00f0ff")
             elif idx < step_idx:
-                lbl.configure(text=lbl.cget("text").replace("[ ]", "[OK]").replace("[>>]", "[OK]"),
-                              fg="#000000", bg="#00e676")
+                lbl.configure(text=f"[OK] {raw_txt}", fg="#000000", bg="#00e676")
             else:
-                lbl.configure(fg="#94a3b8", bg="#162032")
+                lbl.configure(text=f"[ ] {raw_txt}", fg="#94a3b8", bg="#162032")
 
         if anomaly != "NONE":
             self.instruction_lbl.configure(text=f"WARNING: {instruction}", fg="#ff1744", bg="#2a0d14")

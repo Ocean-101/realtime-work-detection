@@ -2,7 +2,7 @@
   "experiment_id": "BAS-EXP-BOX-RETURN",
   "name": "Box Object Extraction & Return Procedure",
   "description": "Astronaut opens the containment box, extracts one object, returns the object into the box, and closes the box.",
-  "debounce_frames": 12,
+  "debounce_frames": 6,
   "fps": 30.0,
   "states": {
     "0": {

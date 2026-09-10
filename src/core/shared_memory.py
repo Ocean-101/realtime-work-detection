@@ -35,8 +35,7 @@ class DigitalTwinBlackboard:
         self.objects: Dict[str, ExperimentObject] = {
             "container_box": ExperimentObject(name="container_box", class_name="container_box"),
             "container_lid": ExperimentObject(name="container_lid", class_name="container_lid"),
-            "red_box": ExperimentObject(name="red_box", class_name="red_box"),
-            "yellow_box": ExperimentObject(name="yellow_box", class_name="yellow_box")
+            "component_box": ExperimentObject(name="component_box", class_name="component_box")
         }
         self.lid_angle_deg: float = 0.0
 
@@ -62,6 +61,15 @@ class DigitalTwinBlackboard:
         self.fps: float = 0.0
         self.inference_latency_ms: float = 0.0
         self.telemetry_history: List[Dict[str, Any]] = []
+
+        # Local LLM Real-Time Verification
+        self.llm_verification: Dict[str, Any] = {
+            "verified_step": 0,
+            "step_name": "IDLE",
+            "confidence": 1.0,
+            "anomaly_verdict": "NOMINAL",
+            "reason": "Initialized."
+        }
 
     def set_mode(self, mode: str):
         with self._lock:
@@ -110,6 +118,10 @@ class DigitalTwinBlackboard:
             if self._voice_queue:
                 return self._voice_queue.pop(0)
             return None
+
+    def update_llm_verification(self, verif: Dict[str, Any]):
+        with self._lock:
+            self.llm_verification = dict(verif)
 
     def record_telemetry_event(self, event: Dict[str, Any]):
         with self._lock:
@@ -166,5 +178,6 @@ class DigitalTwinBlackboard:
                 "hoi": hoi_list,
                 "elbow_angle_deg": round(self.astronaut_pose.elbow_angle_deg, 1),
                 "shoulder_angle_deg": round(self.astronaut_pose.shoulder_angle_deg, 1),
-                "rom_limits_violated": self.astronaut_pose.rom_limits_violated
+                "rom_limits_violated": self.astronaut_pose.rom_limits_violated,
+                "llm_verification": self.llm_verification
             }

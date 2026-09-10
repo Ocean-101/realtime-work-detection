@@ -116,26 +116,8 @@ class DigitalTwinAgent:
         lid_elev = int(45 * (lid_ang / 90.0))
         cv2.line(canvas, (cb_x1, cb_y1), (cb_x1 + cb_w, cb_y1 - lid_elev), (0, 255, 200) if lid_ang > 35 else (140, 145, 160), 3)
 
-        # Draw Red Box
+        # Draw Component Box (Box Manipulation Experiment)
         entities = scene_graph["entities"]
-        if "red_box" in entities:
-            r_info = entities["red_box"]
-            rx = int(wb_cx - 35 if r_info["is_inside_container"] else wb_cx - 130)
-            ry = int(cb_y1 + 15 if r_info["is_inside_container"] else cb_y1 - 40)
-            cv2.rectangle(canvas, (rx - 16, ry - 14), (rx + 16, ry + 14), (40, 40, 235), -1)
-            cv2.rectangle(canvas, (rx - 16, ry - 14), (rx + 16, ry + 14), (255, 255, 255), 1)
-            cv2.putText(canvas, "RED", (rx - 12, ry + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-
-        # Draw Yellow Box
-        if "yellow_box" in entities:
-            y_info = entities["yellow_box"]
-            yx = int(wb_cx + 35 if y_info["is_inside_container"] else wb_cx + 130)
-            yy = int(cb_y1 + 15 if y_info["is_inside_container"] else cb_y1 - 40)
-            cv2.rectangle(canvas, (yx - 16, yy - 14), (yx + 16, yy + 14), (20, 215, 235), -1)
-            cv2.rectangle(canvas, (yx - 16, yy - 14), (yx + 16, yy + 14), (255, 255, 255), 1)
-            cv2.putText(canvas, "YEL", (yx - 12, yy + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (10, 10, 10), 1)
-
-        # Draw Component Box (Box-Return Experiment)
         if "component_box" in entities:
             c_info = entities["component_box"]
             cx = int(wb_cx if c_info["is_inside_container"] else wb_cx - 110)

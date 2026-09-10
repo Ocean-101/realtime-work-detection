@@ -20,8 +20,8 @@ from src.agents.monitoring_agent import MonitoringAgent
 class TestMultiAgentFlow(unittest.TestCase):
 
     def test_full_agent_loop_execution(self):
-        video_path = "experiments/nominal_sample_experiment.mp4"
-        self.assertTrue(os.path.exists(video_path), "Sample video must exist")
+        video_path = "clip1.mp4" if os.path.exists("clip1.mp4") else "experiments/nominal_sample_experiment.mp4"
+        self.assertTrue(os.path.exists(video_path), "Video must exist")
 
         cap = cv2.VideoCapture(video_path)
         self.assertTrue(cap.isOpened(), "Video must be openable")
