@@ -101,9 +101,14 @@ class PerceptionAgent:
                         bx1, by1, bx2, by2 = box.xyxy[0].tolist()
                         cls_name = self.common_model.names.get(cls_id, f"obj_{cls_id}")
 
-                        # Distinct identifier if multiple objects share class
-                        key = cls_name if cls_name not in objects else f"{cls_name}_{obj_idx}"
-                        obj_idx += 1
+                        # Filter: ONLY keep experiment-relevant items (e.g. manipulable payloads, containers)
+                        # NEVER label person, chair, laptop, couch, tv, etc.
+                        is_manipulable = cls_name in ("bottle", "cup", "cell phone", "book", "bowl", "scissors")
+                        is_container = cls_name in ("suitcase", "backpack", "handbag", "box")
+
+                        if not (is_manipulable or is_container):
+                            # Ignore all non-experiment background clutter (person, chair, laptop, etc.)
+                            continue
 
                         b = BBox2D(
                             xmin=float(bx1), ymin=float(by1),
@@ -112,10 +117,8 @@ class PerceptionAgent:
                         )
                         center = ((bx1 + bx2) / 2.0, (by1 + by2) / 2.0)
                         obj_cam = self._pixel_to_camera_coord(center[0], center[1], depth_m=1.20)
-                        objects[key] = ExperimentObject(name=cls_name, class_name=cls_name, bbox=b, pos_rack=obj_cam)
 
-                        # If a common manipulable object was found and component_box isn't set, alias it
-                        if cls_name in ("suitcase", "book", "bottle", "cup", "cell phone", "bowl") and "component_box" not in objects:
+                        if is_manipulable and "component_box" not in objects:
                             objects["component_box"] = ExperimentObject(
                                 name="component_box",
                                 class_name=cls_name,
@@ -123,6 +126,14 @@ class PerceptionAgent:
                                 pos_rack=obj_cam,
                                 state=EntityState.DOCKED,
                                 is_inside_container=True
+                            )
+                        elif is_container and "container_box" not in objects:
+                            objects["container_box"] = ExperimentObject(
+                                name="container_box",
+                                class_name="container_box",
+                                bbox=b,
+                                pos_rack=obj_cam,
+                                state=EntityState.DOCKED
                             )
             except Exception:
                 pass

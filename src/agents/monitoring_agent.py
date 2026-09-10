@@ -252,17 +252,42 @@ class MonitoringAgent:
             bgr = cv2.cvtColor(hsv_pix, cv2.COLOR_HSV2BGR)[0][0]
             return (int(bgr[0]), int(bgr[1]), int(bgr[2]))
 
+        # Strict Filter: ONLY label experiment things on screen (container, lid, component payload, hands)
+        # Suppress all background clutter (person, chair, laptop, desk, etc.)
+        EXPERIMENT_ALLOWED_NAMES = {
+            "container_box", "container_lid", "component_box",
+            "red_box", "yellow_box", "astronaut_hand", "operator_hand"
+        }
+
         occupied_badge_rects: List[Tuple[int, int, int, int]] = []
 
         for name, obj in objects.items():
+            is_experiment_thing = (
+                name in EXPERIMENT_ALLOWED_NAMES
+                or any(k in name for k in ("container", "box", "lid", "component", "hand"))
+            )
+            if not is_experiment_thing:
+                continue
+
             if obj.bbox:
                 bx1, by1 = int(obj.bbox.xmin), int(obj.bbox.ymin)
                 bx2, by2 = int(obj.bbox.xmax), int(obj.bbox.ymax)
                 col = get_obj_color(name)
                 cv2.rectangle(frame, (bx1, by1), (bx2, by2), col, max(1, int(1.5 * scale * 2)))
 
-                # Text format: show confidence percentage if detected by neural model
-                if obj.bbox.confidence and obj.bbox.confidence > 0.05 and name not in ("container_box", "container_lid"):
+                # Text format: clean experiment labels
+                if "container_lid" in name:
+                    status_txt = f"CONTAINER LID [{lid_angle:.0f}°]"
+                elif "container_box" in name:
+                    status_txt = "CONTAINER BOX"
+                elif "component_box" in name:
+                    c_tag = f" ({obj.class_name.upper()})" if obj.class_name and obj.class_name != "component_box" else ""
+                    status_txt = f"COMPONENT{c_tag} [{obj.state.value}]"
+                elif "red_box" in name:
+                    status_txt = f"RED BOX [{obj.state.value}]"
+                elif "yellow_box" in name:
+                    status_txt = f"YELLOW BOX [{obj.state.value}]"
+                elif obj.bbox.confidence and obj.bbox.confidence > 0.05:
                     status_txt = f"{obj.name.upper()} {int(obj.bbox.confidence * 100)}%"
                 else:
                     status_txt = f"{obj.name.upper()} [{obj.state.value}]"

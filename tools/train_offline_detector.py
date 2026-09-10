@@ -1,28 +1,29 @@
-"""
-BAS Autonomous HAR System - Offline YOLOv8 Object Detector Trainer
-Trains a lightweight YOLOv8n object detection model on the extracted box manipulation dataset
-(container_box, container_lid, component_box, operator_hand) completely offline on-device.
-Zero cloud dependencies, zero external tracking (wandb disabled).
-"""
-
 import os
 import sys
 import shutil
 import argparse
 
-# Ensure workspace root in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def train_offline_detector(
-    data_yaml="dataset/box_manipulation_dataset/data.yaml",
+    data_yaml="dataset/unified_detector_dataset/data.yaml",
     output_model="models/detector_offline.pt",
     epochs=15,
-    img_size=640,
-    batch_size=8
+    img_size=512,
+    batch_size=16,
+    device=None,
+    workers=None
 ):
     import torch
     from ultralytics import YOLO
+
+    # Auto-detect device if not explicitly provided
+    if device is None:
+        device = 0 if torch.cuda.is_available() else "cpu"
+
+    if workers is None:
+        workers = 4 if device != "cpu" else min(4, os.cpu_count() or 2)
 
     print("=" * 70)
     print("   BHARATIYA ANTARIKSH STATION (BAS) - OFFLINE YOLOv8 OBJECT DETECTOR")
@@ -30,10 +31,14 @@ def train_offline_detector(
     print(f"   Dataset Config   : {data_yaml}")
     print(f"   Target Output    : {output_model}")
     print(f"   Target Epochs    : {epochs} | Batch: {batch_size} | ImgSz: {img_size}")
+    print(f"   Compute Device   : {device} (CUDA Available: {torch.cuda.is_available()})")
     print("=" * 70)
 
     if not os.path.exists(data_yaml):
         raise FileNotFoundError(f"data.yaml not found: {data_yaml}")
+
+    # Disable wandb and cloud trackers
+    os.environ["WANDB_MODE"] = "disabled"
 
     # Initialize YOLOv8n from local pretrained checkpoint for fast transfer learning
     model = YOLO("yolov8n.pt")
@@ -44,8 +49,8 @@ def train_offline_detector(
         epochs=epochs,
         imgsz=img_size,
         batch=batch_size,
-        device="cpu",
-        workers=2,
+        device=device,
+        workers=workers,
         plots=True,
         save=True,
         project="runs/detect",
@@ -69,11 +74,23 @@ def train_offline_detector(
         print(f"\n[SUCCESS] Model state saved to: {output_model}")
 
     print("=" * 70)
+    return results
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, default="dataset/unified_detector_dataset/data.yaml", help="Path to data.yaml")
+    parser.add_argument("--output", type=str, default="models/detector_offline.pt", help="Path to save output model")
     parser.add_argument("--epochs", type=int, default=15, help="Number of training epochs")
-    parser.add_argument("--batch", type=int, default=8, help="Batch size")
+    parser.add_argument("--batch", type=int, default=16, help="Batch size")
+    parser.add_argument("--imgsz", type=int, default=512, help="Image resolution size")
+    parser.add_argument("--device", type=str, default=None, help="Device (0, cpu, etc.)")
     args = parser.parse_args()
-    train_offline_detector(epochs=args.epochs, batch_size=args.batch)
+    train_offline_detector(
+        data_yaml=args.dataset,
+        output_model=args.output,
+        epochs=args.epochs,
+        batch_size=args.batch,
+        img_size=args.imgsz,
+        device=args.device
+    )

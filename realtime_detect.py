@@ -47,11 +47,13 @@ def run_realtime_detection(
     iou_threshold=0.45,
     save_dir="experiments/detections",
     max_frames=None,
-    headless=False
+    headless=False,
+    experiment_only=True
 ):
     print("=" * 75)
-    print("   BHARATIYA ANTARIKSH STATION (BAS) - REAL-TIME COMMON OBJECT DETECTION")
-    print(f"   Model Weights    : {model_path} (COCO-80 Common Objects)")
+    print("   BHARATIYA ANTARIKSH STATION (BAS) - REAL-TIME EXPERIMENT DETECTOR")
+    print(f"   Model Weights    : {model_path}")
+    print(f"   Mode             : {'EXPERIMENT OBJECTS ONLY (Clutter Filtered)' if experiment_only else 'ALL OBJECTS'}")
     print(f"   Confidence Gate  : {int(conf_threshold * 100)}%")
     print(f"   Target Video Src : Camera index #{source}" if str(source).isdigit() else f"   Target Video Src : {source}")
     print("=" * 75)
@@ -178,15 +180,38 @@ def run_realtime_detection(
             results = model(frame, verbose=False, conf=current_conf, iou=iou_threshold)
             detections = []
 
+            # Filter definitions: ONLY label experiment things
+            EXPERIMENT_CONTAINERS = {"suitcase", "backpack", "handbag", "box", "container_box"}
+            EXPERIMENT_PAYLOADS = {"bottle", "cup", "cell phone", "book", "bowl", "scissors", "component_box", "red_box", "yellow_box"}
+            EXPERIMENT_HANDS = {"hand", "operator_hand", "astronaut_hand"}
+            EXPERIMENT_LIDS = {"lid", "container_lid"}
+
             if results and len(results) > 0 and results[0].boxes:
                 for box in results[0].boxes:
                     cls_id = int(box.cls[0].item())
                     conf = float(box.conf[0].item())
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    cls_name = model.names.get(cls_id, f"obj_{cls_id}")
+                    raw_name = model.names.get(cls_id, f"obj_{cls_id}").lower()
+
+                    if experiment_only:
+                        # Strictly ignore all non-experiment background clutter (person, chair, laptop, desk, etc.)
+                        if raw_name in EXPERIMENT_CONTAINERS:
+                            disp_name = "CONTAINER BOX"
+                        elif raw_name in EXPERIMENT_PAYLOADS:
+                            disp_name = f"PAYLOAD ({raw_name.upper()})" if raw_name not in ("component_box", "red_box", "yellow_box") else raw_name.upper().replace("_", " ")
+                        elif raw_name in EXPERIMENT_HANDS:
+                            disp_name = "OPERATOR HAND"
+                        elif raw_name in EXPERIMENT_LIDS:
+                            disp_name = "CONTAINER LID"
+                        else:
+                            # Skip this background object!
+                            continue
+                    else:
+                        disp_name = raw_name.upper()
+
                     detections.append({
                         "id": cls_id,
-                        "name": cls_name,
+                        "name": disp_name,
                         "conf": conf,
                         "bbox": (int(x1), int(y1), int(x2), int(y2))
                     })
@@ -221,7 +246,7 @@ def run_realtime_detection(
                 cv2.drawMarker(display_frame, (cx, cy), cls_color, cv2.MARKER_CROSS, 8, 1)
 
                 # Pill Label Badge
-                label_txt = f"{det['name'].upper()} {int(det['conf'] * 100)}%"
+                label_txt = f"{det['name']} {int(det['conf'] * 100)}%"
                 font_scale = max(0.38, scale * 0.75)
                 (tw, th), _ = cv2.getTextSize(label_txt, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
                 pad_x, pad_y = 6, 4
@@ -248,17 +273,18 @@ def run_realtime_detection(
             cv2.addWeighted(overlay_top, 0.85, display_frame, 0.15, 0, display_frame)
             cv2.line(display_frame, (0, banner_h), (w, banner_h), (0, 240, 255), 1)
 
-            # Header Zone 1 (Left): Mission & Source
-            title_txt = f"BAS REAL-TIME OBJECT DETECTOR | {source_name}"
+            # Header Zone 1 (Left): Mission & Filter Status
+            mode_tag = "EXPERIMENT ITEMS ONLY" if experiment_only else "ALL OBJECTS"
+            title_txt = f"BAS REAL-TIME DETECTOR | {mode_tag} [KEY E]"
             cv2.putText(display_frame, title_txt, (14, int(banner_h * 0.68)),
-                        cv2.FONT_HERSHEY_SIMPLEX, max(0.42, scale * 0.80), (0, 240, 255), 1, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.40, scale * 0.78), (0, 240, 255), 1, cv2.LINE_AA)
 
             # Header Zone 2 (Center/Right): FPS & Detection Stats
-            stats_txt = f"FPS: {fps_smooth:.1f} | OBJECTS: {len(detections)} | CONF: {int(current_conf * 100)}%"
-            (stw, _), _ = cv2.getTextSize(stats_txt, cv2.FONT_HERSHEY_SIMPLEX, max(0.40, scale * 0.75), 1)
-            stats_x = max(w - stw - 16, int(w * 0.50))
+            stats_txt = f"FPS: {fps_smooth:.1f} | EXPERIMENT ITEMS: {len(detections)} | CONF: {int(current_conf * 100)}%"
+            (stw, _), _ = cv2.getTextSize(stats_txt, cv2.FONT_HERSHEY_SIMPLEX, max(0.38, scale * 0.72), 1)
+            stats_x = max(w - stw - 16, int(w * 0.48))
             cv2.putText(display_frame, stats_txt, (stats_x, int(banner_h * 0.68)),
-                        cv2.FONT_HERSHEY_SIMPLEX, max(0.40, scale * 0.75), (0, 230, 118), 1, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.38, scale * 0.72), (0, 230, 118), 1, cv2.LINE_AA)
 
             # Bottom Footer Bar
             bot_h = max(28, int(h * 0.048))
@@ -272,14 +298,15 @@ def run_realtime_detection(
                 unique_counts = {}
                 for d in detections:
                     unique_counts[d["name"]] = unique_counts.get(d["name"], 0) + 1
-                det_summary = "DETECTED: " + ", ".join([f"{k} x{v}" for k, v in unique_counts.items()])
+                det_summary = "EXPERIMENT ITEMS: " + ", ".join([f"{k} x{v}" for k, v in unique_counts.items()])
                 if len(det_summary) > 75:
                     det_summary = det_summary[:72] + "..."
                 cv2.putText(display_frame, det_summary, (14, h - int(bot_h * 0.32)),
                             cv2.FONT_HERSHEY_SIMPLEX, max(0.38, scale * 0.68), (240, 240, 240), 1, cv2.LINE_AA)
             else:
-                cv2.putText(display_frame, "Point camera at any common object (cell phone, bottle, cup, book, person, laptop, etc.)",
-                            (14, h - int(bot_h * 0.32)), cv2.FONT_HERSHEY_SIMPLEX, max(0.36, scale * 0.65), (140, 160, 180), 1, cv2.LINE_AA)
+                foot_msg = "EXPERIMENT ONLY: Container, Box, Payloads & Hands labeled. (Person/Chair clutter hidden)." if experiment_only else "ALL OBJECTS: Point camera at any object."
+                cv2.putText(display_frame, foot_msg,
+                            (14, h - int(bot_h * 0.32)), cv2.FONT_HERSHEY_SIMPLEX, max(0.35, scale * 0.63), (140, 160, 180), 1, cv2.LINE_AA)
 
             # Show window if not headless
             if not headless:
@@ -288,6 +315,9 @@ def run_realtime_detection(
                 if key in (ord('q'), ord('Q'), 27):  # 27 = ESC
                     print("\n[Detection] Exit requested by user.")
                     break
+                elif key in (ord('e'), ord('E')):
+                    experiment_only = not experiment_only
+                    print(f"\n[Detection] Mode switched to: {'EXPERIMENT OBJECTS ONLY' if experiment_only else 'ALL OBJECTS'}")
                 elif key in (ord('s'), ord('S')):
                     snap_path = os.path.join(save_dir, f"detection_{int(time.time())}.jpg")
                     cv2.imwrite(snap_path, display_frame)
@@ -316,7 +346,7 @@ def run_realtime_detection(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BAS Real-Time Common Object Detector (COCO-80)")
+    parser = argparse.ArgumentParser(description="BAS Real-Time Experiment Object Detector")
     parser.add_argument("--source", default="auto",
                         help="Camera index ('0'), 'auto' (probes webcam #0 first), or path to video file (default: auto)")
     parser.add_argument("--model", default="yolov8n.pt",
@@ -327,6 +357,8 @@ if __name__ == "__main__":
                         help="Maximum frames to process (optional)")
     parser.add_argument("--headless", action="store_true",
                         help="Run headless without opening GUI display window")
+    parser.add_argument("--all", action="store_true",
+                        help="Disable experiment-only filter and label all 80 COCO objects")
     args = parser.parse_args()
 
     run_realtime_detection(
@@ -334,5 +366,6 @@ if __name__ == "__main__":
         model_path=args.model,
         conf_threshold=args.conf,
         max_frames=args.frames,
-        headless=args.headless
+        headless=args.headless,
+        experiment_only=not args.all
     )
