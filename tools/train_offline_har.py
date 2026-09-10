@@ -20,10 +20,16 @@ def train_har_action_model(
     output_model_path="models/har_sequence_classifier.pt",
     epochs=40
 ):
-    import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    from torch.utils.data import TensorDataset, DataLoader
+    try:
+        import torch  # type: ignore
+        import torch.nn as nn  # type: ignore
+        import torch.optim as optim  # type: ignore
+        from torch.utils.data import TensorDataset, DataLoader  # type: ignore
+    except ImportError:
+        print("[Error] PyTorch is required to train the model.")
+        print("Please run this script using the project virtual environment:")
+        print(r"  .venv\Scripts\python.exe tools/train_offline_har.py")
+        sys.exit(1)
 
     print("=" * 70)
     print("   BHARATIYA ANTARIKSH STATION (BAS) - OFFLINE HAR MODEL TRAINING")

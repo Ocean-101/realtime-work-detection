@@ -220,6 +220,10 @@ class MissionControlGUI:
         img_tk = ImageTk.PhotoImage(image=img, master=self.root)
         self.video_canvas.img_tk = img_tk
         self.video_canvas.configure(image=img_tk)
+        try:
+            self.root.update_idletasks()
+        except Exception:
+            pass
 
     def update_state(self, step_idx: int, instruction: str, anomaly: str, log_line: Optional[str] = None):
         """Updates step checklist highlighting, instruction text, and log messages."""

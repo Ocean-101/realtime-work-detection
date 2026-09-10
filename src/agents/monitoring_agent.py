@@ -73,7 +73,11 @@ class MonitoringAgent:
         latency_ms: float,
         twin_canvas: Optional[np.ndarray] = None,
         current_activity: str = "IDLE",
-        llm_verification: Optional[Dict[str, Any]] = None
+        llm_verification: Optional[Dict[str, Any]] = None,
+        source_type: str = "LIVE_WEBCAM",
+        is_step_correct: bool = True,
+        step_verdict: str = "CORRECT (NOMINAL)",
+        experiment_id: str = "BAS-EXP-BOX-RETURN"
     ) -> np.ndarray:
         """
         Synthesizes audio alerts, logs session actions to JSON, and renders live HUD overlays.
@@ -150,11 +154,16 @@ class MonitoringAgent:
             fps=fps,
             twin_canvas=twin_canvas,
             current_activity=current_activity,
-            llm_verification=llm_verification
+            llm_verification=llm_verification,
+            source_type=source_type,
+            is_step_correct=is_step_correct,
+            step_verdict=step_verdict
         )
 
-        # 5. Dispatch to Dual Video Pipeline (Local MP4 + RTSP Stream + Web API)
+        # 6. Dispatch to Dual Video Pipeline (Local MP4 + RTSP Stream + Web API)
         if self.video_pipeline:
+            self.video_pipeline.set_active_source_type(source_type)
+            self.video_pipeline.set_active_experiment_id(experiment_id)
             self.video_pipeline.write_frame(annotated_frame, telemetry={
                 "step": int(current_step),
                 "step_name": current_step.name,
@@ -168,10 +177,26 @@ class MonitoringAgent:
                 "lid_angle": round(lid_angle, 1),
                 "frame_id": frame_id,
                 "what_i_am_doing": current_activity,
-                "what_i_have_to_do": instruction
+                "what_i_have_to_do": instruction,
+                "source_type": source_type,
+                "is_step_correct": is_step_correct,
+                "step_verdict": step_verdict,
+                "experiment_id": experiment_id
             })
 
         return annotated_frame
+
+    def check_source_switch_requested(self) -> Optional[str]:
+        """Returns requested source ('0' or 'clip1.mp4') if switched via UI, else None."""
+        if self.video_pipeline:
+            return self.video_pipeline.check_and_clear_source_switch()
+        return None
+
+    def check_experiment_switch_requested(self) -> Optional[str]:
+        """Returns requested protocol path if switched via UI, else None."""
+        if self.video_pipeline:
+            return self.video_pipeline.check_and_clear_experiment_switch()
+        return None
 
     def _draw_hud(
         self,
@@ -186,7 +211,10 @@ class MonitoringAgent:
         fps: float,
         twin_canvas: Optional[np.ndarray] = None,
         current_activity: str = "IDLE",
-        llm_verification: Optional[Dict[str, Any]] = None
+        llm_verification: Optional[Dict[str, Any]] = None,
+        source_type: str = "LIVE_WEBCAM",
+        is_step_correct: bool = True,
+        step_verdict: str = "CORRECT (NOMINAL)"
     ) -> np.ndarray:
         frame = raw_frame.copy()
         h, w, _ = frame.shape
@@ -201,8 +229,28 @@ class MonitoringAgent:
         color_map = {
             "container_box": (160, 160, 160),
             "container_lid": (0, 240, 200),
-            "component_box": (255, 140, 0)
+            "component_box": (255, 140, 0),
+            "red_box": (60, 70, 255),
+            "yellow_box": (0, 230, 255),
+            "person": (255, 215, 0),
+            "cell phone": (0, 255, 128),
+            "bottle": (255, 105, 180),
+            "cup": (255, 140, 0),
+            "book": (186, 85, 211),
+            "laptop": (0, 191, 255),
+            "scissors": (255, 20, 147),
+            "mouse": (50, 205, 50),
+            "chair": (169, 169, 169)
         }
+
+        def get_obj_color(obj_name: str) -> Tuple[int, int, int]:
+            base = obj_name.split("_")[0]
+            if base in color_map:
+                return color_map[base]
+            h_val = int((abs(hash(obj_name)) * 37) % 180)
+            hsv_pix = np.uint8([[[h_val, 220, 240]]])
+            bgr = cv2.cvtColor(hsv_pix, cv2.COLOR_HSV2BGR)[0][0]
+            return (int(bgr[0]), int(bgr[1]), int(bgr[2]))
 
         occupied_badge_rects: List[Tuple[int, int, int, int]] = []
 
@@ -210,11 +258,14 @@ class MonitoringAgent:
             if obj.bbox:
                 bx1, by1 = int(obj.bbox.xmin), int(obj.bbox.ymin)
                 bx2, by2 = int(obj.bbox.xmax), int(obj.bbox.ymax)
-                col = color_map.get(name, (200, 200, 200))
+                col = get_obj_color(name)
                 cv2.rectangle(frame, (bx1, by1), (bx2, by2), col, max(1, int(1.5 * scale * 2)))
 
-                # Exact text size calculation
-                status_txt = f"{obj.name.upper()} [{obj.state.value}]"
+                # Text format: show confidence percentage if detected by neural model
+                if obj.bbox.confidence and obj.bbox.confidence > 0.05 and name not in ("container_box", "container_lid"):
+                    status_txt = f"{obj.name.upper()} {int(obj.bbox.confidence * 100)}%"
+                else:
+                    status_txt = f"{obj.name.upper()} [{obj.state.value}]"
                 font_scale = max(0.34, scale * 0.85)
                 (tw, th), _ = cv2.getTextSize(status_txt, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
                 pad_x, pad_y = 6, 4
@@ -228,10 +279,9 @@ class MonitoringAgent:
                 else:
                     ry1 = min(h - bot_h - badge_h - 2, by1 + 4)
 
-                # Collision resolution with previously placed badges (e.g. lid & container sharing coordinates)
+                # Collision resolution with previously placed badges
                 for (ox1, oy1, ox2, oy2) in occupied_badge_rects:
                     if not (rx1 + badge_w < ox1 or rx1 > ox2 or ry1 + badge_h < oy1 or ry1 > oy2):
-                        # Overlap detected! Shift downwards below the previous badge
                         ry1 = min(h - bot_h - badge_h - 2, oy2 + 3)
 
                 rx2 = rx1 + badge_w
@@ -267,7 +317,6 @@ class MonitoringAgent:
             wrx2 = wrx1 + wtw + 8
             wry2 = wry1 + wth + 6
 
-            # Avoid collision with existing badges
             for (ox1, oy1, ox2, oy2) in occupied_badge_rects:
                 if not (wrx1 + (wrx2 - wrx1) < ox1 or wrx1 > ox2 or wry1 + (wry2 - wry1) < oy1 or wry1 > oy2):
                     wry1 = min(h - bot_h - (wry2 - wry1) - 2, oy2 + 3)
@@ -295,12 +344,14 @@ class MonitoringAgent:
         cv2.line(frame, (0, banner_h), (w, banner_h), sep_col, 1)
         cv2.line(frame, (0, h - bot_h), (w, h - bot_h), sep_col, 1)
 
-        # Header Zone 1 (Left): Mission Identifier
-        title_txt = "BAS HAR" if w < 850 else "BAS HAR SYSTEM"
+        # Header Zone 1 (Left): Mission Identifier & Real-Time Source Indicator
+        src_tag = "LIVE #0" if source_type == "LIVE_WEBCAM" else "DEMO CLIP"
+        title_txt = f"BAS HAR | {src_tag}"
         title_scale = max(0.38, scale * 0.90)
         (tw, th), _ = cv2.getTextSize(title_txt, cv2.FONT_HERSHEY_SIMPLEX, title_scale, thick)
         title_y = (banner_h + th) // 2
-        cv2.putText(frame, title_txt, (14, title_y), cv2.FONT_HERSHEY_SIMPLEX, title_scale, (255, 255, 255), thick, cv2.LINE_AA)
+        title_col = (0, 240, 150) if source_type == "LIVE_WEBCAM" else (255, 220, 100)
+        cv2.putText(frame, title_txt, (14, title_y), cv2.FONT_HERSHEY_SIMPLEX, title_scale, title_col, thick, cv2.LINE_AA)
         left_bound = 14 + tw + 14
 
         # Header Zone 3 (Right): Telemetry Status
@@ -347,7 +398,7 @@ class MonitoringAgent:
                 cv2.FONT_HERSHEY_SIMPLEX, step_scale, step_badge_col, 1, cv2.LINE_AA
             )
 
-        # Footer: Action & Guidance Bar (Guaranteed No Overlap)
+        # Footer: Action Bar & Step Verification Badge
         act_scale = max(0.36, scale * 0.85)
         act_display = current_activity if current_activity != "IDLE" else "OBSERVING"
         doing_txt = f"DOING: {act_display}"
@@ -358,7 +409,18 @@ class MonitoringAgent:
         cv2.rectangle(frame, (10, h - bot_h + 4), (10 + dw + 12, h - 4), (0, 220, 255), 1)
         cv2.putText(frame, doing_txt, (16, bot_y), cv2.FONT_HERSHEY_SIMPLEX, act_scale, (0, 230, 255), 1, cv2.LINE_AA)
 
-        doing_end = 10 + dw + 22
+        doing_end = 10 + dw + 18
+
+        # Real-time Step Correctness Pill
+        verd_txt = "STEP: OK" if is_step_correct else "STEP: ERR"
+        verd_col = (0, 230, 120) if is_step_correct else (40, 60, 255)
+        (vw, vh), _ = cv2.getTextSize(verd_txt, cv2.FONT_HERSHEY_SIMPLEX, act_scale, 1)
+        vx1 = doing_end
+        cv2.rectangle(frame, (vx1, h - bot_h + 4), (vx1 + vw + 12, h - 4), (15, 30, 25) if is_step_correct else (45, 18, 22), -1)
+        cv2.rectangle(frame, (vx1, h - bot_h + 4), (vx1 + vw + 12, h - 4), verd_col, 1)
+        cv2.putText(frame, verd_txt, (vx1 + 6, bot_y), cv2.FONT_HERSHEY_SIMPLEX, act_scale, verd_col, 1, cv2.LINE_AA)
+
+        guide_start = vx1 + vw + 18
 
         # Guidance / Alert Text on the right with safe truncation
         guide_col = (80, 100, 255) if anomaly != AnomalyType.NONE else (255, 255, 255)
@@ -366,7 +428,7 @@ class MonitoringAgent:
         full_guide = f"{prefix}{instruction}"
 
         guide_scale = max(0.34, scale * 0.82)
-        avail_width = w - doing_end - 20
+        avail_width = w - guide_start - 16
 
         (gw, gh), _ = cv2.getTextSize(full_guide, cv2.FONT_HERSHEY_SIMPLEX, guide_scale, 1)
         display_guide = full_guide
@@ -378,7 +440,7 @@ class MonitoringAgent:
                     break
 
         if avail_width > 40:
-            cv2.putText(frame, display_guide, (doing_end, bot_y), cv2.FONT_HERSHEY_SIMPLEX, guide_scale, guide_col, 1, cv2.LINE_AA)
+            cv2.putText(frame, display_guide, (guide_start, bot_y), cv2.FONT_HERSHEY_SIMPLEX, guide_scale, guide_col, 1, cv2.LINE_AA)
 
         return frame
 

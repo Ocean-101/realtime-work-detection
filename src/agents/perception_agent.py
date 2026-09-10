@@ -26,7 +26,9 @@ class PerceptionAgent:
     def __init__(
         self,
         calib_path: str = "configs/camera_calib.json",
-        model_path: Optional[str] = "models/detector_offline.pt"
+        model_path: Optional[str] = "models/detector_offline.pt",
+        common_model_path: Optional[str] = "yolov8n.pt",
+        enable_common_detection: bool = True
     ):
         # Load camera intrinsics
         with open(calib_path, "r") as f:
@@ -46,7 +48,7 @@ class PerceptionAgent:
 
         self.last_lid_angle = 0.0
 
-        # Offline YOLOv8 Deep Neural Object Detector
+        # 1. Offline YOLOv8 Deep Neural Object Detector for Experiment Protocol
         self.model = None
         if model_path and os.path.exists(model_path):
             try:
@@ -57,6 +59,18 @@ class PerceptionAgent:
                 print(f"[Perception Agent] Offline YOLOv8 detector engaged: {model_path}")
             except Exception as e:
                 print(f"[Perception Agent] Offline model note: {e}. Active with contour heuristics.")
+
+        # 2. General / Common Object Detector (YOLOv8 COCO-80 Pretrained)
+        self.common_model = None
+        if enable_common_detection and common_model_path and os.path.exists(common_model_path):
+            try:
+                import importlib
+                ultralytics_pkg = importlib.import_module("ultralytics")
+                YOLO = getattr(ultralytics_pkg, "YOLO")
+                self.common_model = YOLO(common_model_path)
+                print(f"[Perception Agent] Common Object Detector (COCO-80) engaged: {common_model_path}")
+            except Exception as e:
+                print(f"[Perception Agent] Common model note: {e}")
 
     def process_frame(
         self,
@@ -75,7 +89,45 @@ class PerceptionAgent:
         hand_bbox = None
         hand_center = (0.0, 0.0)
 
-        # 1. Attempt Offline Neural Detector Inference
+        # 1. Run Common Object Detector (COCO-80 Common Objects: person, bottle, cup, phone, book, etc.)
+        if self.common_model is not None:
+            try:
+                results_common = self.common_model(frame, verbose=False, conf=0.25)
+                if results_common and len(results_common) > 0 and results_common[0].boxes:
+                    obj_idx = 0
+                    for box in results_common[0].boxes:
+                        cls_id = int(box.cls[0].item())
+                        conf = float(box.conf[0].item())
+                        bx1, by1, bx2, by2 = box.xyxy[0].tolist()
+                        cls_name = self.common_model.names.get(cls_id, f"obj_{cls_id}")
+
+                        # Distinct identifier if multiple objects share class
+                        key = cls_name if cls_name not in objects else f"{cls_name}_{obj_idx}"
+                        obj_idx += 1
+
+                        b = BBox2D(
+                            xmin=float(bx1), ymin=float(by1),
+                            xmax=float(bx2), ymax=float(by2),
+                            confidence=conf, class_id=cls_id, class_name=cls_name
+                        )
+                        center = ((bx1 + bx2) / 2.0, (by1 + by2) / 2.0)
+                        obj_cam = self._pixel_to_camera_coord(center[0], center[1], depth_m=1.20)
+                        objects[key] = ExperimentObject(name=cls_name, class_name=cls_name, bbox=b, pos_rack=obj_cam)
+
+                        # If a common manipulable object was found and component_box isn't set, alias it
+                        if cls_name in ("suitcase", "book", "bottle", "cup", "cell phone", "bowl") and "component_box" not in objects:
+                            objects["component_box"] = ExperimentObject(
+                                name="component_box",
+                                class_name=cls_name,
+                                bbox=b,
+                                pos_rack=obj_cam,
+                                state=EntityState.DOCKED,
+                                is_inside_container=True
+                            )
+            except Exception:
+                pass
+
+        # 2. Attempt Offline Neural Detector Inference for Experiment-Specific Items
         if self.model is not None:
             try:
                 results = self.model(frame, verbose=False, conf=0.15)
@@ -104,7 +156,7 @@ class PerceptionAgent:
         # 2. Extract bounding box of container if present from detector
         cont_bbox = objects["container_box"].bbox if "container_box" in objects else None
 
-        # 3. Detect Glove / Bare Human Hand (Skin-tone + Glove ranges) if not detected by YOLO
+        # 3. Detect Glove / Bare Human Hand (Skin-tone + Glove ranges) in workspace manipulation zone
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         if not hand_bbox:
             mask_skin1 = cv2.inRange(hsv, np.array([0, 30, 60]), np.array([25, 200, 255]))
@@ -113,12 +165,17 @@ class PerceptionAgent:
             mask_hand = cv2.bitwise_or(cv2.bitwise_or(mask_skin1, mask_skin2), mask_glove)
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
             mask_hand = cv2.morphologyEx(mask_hand, cv2.MORPH_OPEN, kernel)
-            hand_bbox, hand_center = self._extract_largest_bbox(mask_hand, "astronaut_hand", 3, min_area=600)
+
+            # Prioritize hands in the workspace (exclude top 20% head zone on webcam)
+            mask_workspace_hand = mask_hand.copy()
+            mask_workspace_hand[:int(h * 0.20), :] = 0
+            hand_bbox, hand_center = self._extract_largest_bbox(mask_workspace_hand, "astronaut_hand", 3, min_area=500)
+            if not hand_bbox:
+                hand_bbox, hand_center = self._extract_largest_bbox(mask_hand, "astronaut_hand", 3, min_area=600)
 
         # 4. Adaptive Container Box Detection
         # If neural model missed the container box on webcam, establish robust workspace container
         if not cont_bbox:
-            # Look for large rectangular cardboard/table contour in lower 60% of view
             lower_half = frame[int(h * 0.35):, :]
             lh_hsv = cv2.cvtColor(lower_half, cv2.COLOR_BGR2HSV)
             mask_cont_brown = cv2.inRange(lh_hsv, np.array([5, 20, 30]), np.array([38, 220, 240]))
@@ -133,11 +190,11 @@ class PerceptionAgent:
             else:
                 # Default canonical container enclosure in lower center workspace
                 cont_bbox = BBox2D(
-                    xmin=float(w * 0.22), ymin=float(h * 0.50),
+                    xmin=float(w * 0.22), ymin=float(h * 0.48),
                     xmax=float(w * 0.78), ymax=float(h * 0.94),
                     confidence=0.85, class_id=0, class_name="container_box"
                 )
-                cont_center = (w * 0.50, h * 0.72)
+                cont_center = (w * 0.50, h * 0.71)
 
             cont_cam = self._pixel_to_camera_coord(cont_center[0], cont_center[1], depth_m=1.20)
             objects["container_box"] = ExperimentObject(
@@ -147,10 +204,31 @@ class PerceptionAgent:
                 pos_rack=cont_cam
             )
 
-        # 5. Fallback for Component Object (Item being extracted/returned)
+        # 5. Fallback for Component Objects & Experiment Items (Red Box, Yellow Box, Component)
+        # Check Red object (ISRO Dual-Box benchmark)
+        if "red_box" not in objects:
+            mask_red1 = cv2.inRange(hsv, np.array([0, 90, 60]), np.array([10, 255, 255]))
+            mask_red2 = cv2.inRange(hsv, np.array([170, 90, 60]), np.array([180, 255, 255]))
+            mask_red = cv2.bitwise_or(mask_red1, mask_red2)
+            red_bbox, red_center = self._extract_largest_bbox(mask_red, "red_box", 2, min_area=350)
+            if red_bbox:
+                red_cam = self._pixel_to_camera_coord(red_center[0], red_center[1], depth_m=1.15)
+                objects["red_box"] = ExperimentObject(name="red_box", class_name="red_box", bbox=red_bbox, pos_rack=red_cam)
+
+        # Check Yellow object (ISRO Dual-Box benchmark)
+        if "yellow_box" not in objects:
+            mask_yellow = cv2.inRange(hsv, np.array([18, 90, 60]), np.array([35, 255, 255]))
+            yel_bbox, yel_center = self._extract_largest_bbox(mask_yellow, "yellow_box", 2, min_area=350)
+            if yel_bbox:
+                yel_cam = self._pixel_to_camera_coord(yel_center[0], yel_center[1], depth_m=1.15)
+                objects["yellow_box"] = ExperimentObject(name="yellow_box", class_name="yellow_box", bbox=yel_bbox, pos_rack=yel_cam)
+
+        # Check General Component Box
         if "component_box" not in objects:
-            # A. If hand is detected, check for object held near hand (phone, box, tool, cup)
-            if hand_bbox:
+            if "red_box" in objects:
+                rb = objects["red_box"]
+                objects["component_box"] = ExperimentObject(name="component_box", class_name="component_box", bbox=rb.bbox, pos_rack=rb.pos_rack)
+            elif hand_bbox:
                 hx, hy = int(hand_center[0]), int(hand_center[1])
                 roi_x1 = max(0, hx - 70)
                 roi_x2 = min(w, hx + 70)
@@ -178,7 +256,6 @@ class PerceptionAgent:
                             pos_rack=item_cam
                         )
 
-            # B. If still not found, check prominent non-skin colored object in container/workspace
             if "component_box" not in objects:
                 mask_blue = cv2.inRange(hsv, np.array([85, 50, 40]), np.array([140, 255, 255]))
                 mask_green = cv2.inRange(hsv, np.array([35, 50, 40]), np.array([85, 255, 255]))

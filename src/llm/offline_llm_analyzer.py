@@ -9,19 +9,30 @@ Zero cloud dependencies, 100% offline edge execution.
 import os
 import json
 import time
+import threading
 import urllib.request
 import urllib.error
 from datetime import datetime
 from typing import Dict, Any, Optional
 
+_analysis_lock = threading.Lock()
+_current_analysis: Dict[str, Any] = {
+    "status": "idle",
+    "report": "",
+    "report_file": "experiments/llm_analysis_report.md",
+    "model": "none",
+    "query_time_sec": 0.0
+}
+_is_analyzing = False
+
 
 def query_ollama(
     prompt: str,
     model_name: str = "qwen2.5:1.5b",
-    timeout_sec: int = 45,
+    timeout_sec: int = 8,
     max_tokens: int = 350
 ) -> Optional[str]:
-    """Queries local Ollama endpoint."""
+    """Queries local Ollama endpoint with fast timeout to avoid GUI hangs."""
     url = "http://localhost:11434/api/generate"
     payload = {
         "model": model_name,
@@ -45,7 +56,7 @@ def query_ollama(
             data = json.loads(resp.read().decode("utf-8"))
             return data.get("response", "").strip()
     except Exception as e:
-        print(f"[Offline LLM] Ollama query failed ({e}).")
+        print(f"[Offline LLM] Ollama query notice ({e}).")
         return None
 
 
@@ -138,21 +149,15 @@ Provide a concise, authoritative mission debrief with exactly these 4 sections:
 4. Astronaut Operator Feedback (Clear instructions and performance rating)
 Keep the analysis professional, crisp, and formatted with clean markdown bullet points."""
 
-    # Query local Ollama
+    # Query local Ollama with fast timeout
     print(f"\n[Offline LLM Analyzer] Analyzing session actions using {model_name}...")
     t0 = time.time()
-    llm_report = query_ollama(prompt, model_name=model_name, timeout_sec=45)
+    llm_report = query_ollama(prompt, model_name=model_name, timeout_sec=8)
     query_time = round(time.time() - t0, 2)
 
     is_fallback = False
     if not llm_report:
-        # Fallback to qwen3.5:9b if 1.5b wasn't available
-        if model_name != "qwen3.5:9b":
-            print(f"[Offline LLM Analyzer] Trying qwen3.5:9b fallback...")
-            llm_report = query_ollama(prompt, model_name="qwen3.5:9b", timeout_sec=45)
-
-    if not llm_report:
-        print("[Offline LLM Analyzer] Local LLM unreachable or timed out; generating deterministic audit.")
+        print("[Offline LLM Analyzer] Local LLM unavailable or timed out; generating instant deterministic audit.")
         llm_report = generate_fallback_analysis(session_data)
         is_fallback = True
 
@@ -181,13 +186,54 @@ Keep the analysis professional, crisp, and formatted with clean markdown bullet 
 
     print(f"[Offline LLM Analyzer] Report saved to: {report_output_path}")
 
-    return {
+    res = {
         "status": "success",
         "model": model_name if not is_fallback else "deterministic_rules",
         "query_time_sec": query_time,
         "report": llm_report,
         "report_file": report_output_path
     }
+
+    with _analysis_lock:
+        _current_analysis.update(res)
+
+    return res
+
+
+def start_async_analysis(
+    json_path: str = "experiments/session_actions.json",
+    model_name: str = "qwen2.5:1.5b",
+    report_output_path: str = "experiments/llm_analysis_report.md"
+):
+    """Triggers session analysis in a background daemon thread to never block the main loop or GUI."""
+    global _is_analyzing
+    with _analysis_lock:
+        if _is_analyzing:
+            return
+        _is_analyzing = True
+        _current_analysis["status"] = "running"
+
+    def _worker():
+        global _is_analyzing
+        try:
+            analyze_session(json_path, model_name, report_output_path)
+        except Exception as e:
+            print(f"[Offline LLM Analyzer] Async worker error: {e}")
+            with _analysis_lock:
+                _current_analysis["status"] = "error"
+                _current_analysis["message"] = str(e)
+        finally:
+            with _analysis_lock:
+                _is_analyzing = False
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+
+def get_latest_analysis() -> Dict[str, Any]:
+    """Returns latest analysis result or running status without blocking."""
+    with _analysis_lock:
+        return dict(_current_analysis)
 
 
 if __name__ == "__main__":

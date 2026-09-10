@@ -1,0 +1,9 @@
+{
+  "venvPath": "e:/SIH",
+  "venv": ".venv",
+  "extraPaths": [
+    "e:/SIH/.venv/Lib/site-packages",
+    "e:/SIH/src"
+  ],
+  "reportMissingImports": "warning"
+}

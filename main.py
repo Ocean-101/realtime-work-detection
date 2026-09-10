@@ -35,7 +35,7 @@ from src.llm.realtime_llm_verifier import RealtimeLLMVerifier
 
 
 def run_orchestrator(
-    source="clip1.mp4",
+    source="auto",
     config_path=None,
     use_desktop_gui=False,
     show_window=True,
@@ -94,27 +94,56 @@ def run_orchestrator(
             print(f"[Orchestrator] Desktop GUI warning: {e}. Falling back to Web/OpenCV mode.")
             show_window = True
 
-    # 3. Setup Video Source
-    if str(source).isdigit():
+    # 3. Setup Video Source (Auto-Probe Live Webcam first for Real-Time Detection)
+    source_type = "LIVE_WEBCAM"
+    cap = None
+
+    if str(source).lower() == "auto":
+        print("[Orchestrator] Probing physical camera hardware for live real-time detection...")
+        for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
+            try:
+                c = cv2.VideoCapture(0, backend)
+                if c.isOpened():
+                    ret_test, _ = c.read()
+                    if ret_test:
+                        cap = c
+                        source = 0
+                        source_type = "LIVE_WEBCAM"
+                        print("[Orchestrator] Active hardware camera #0 detected! Operating in LIVE REAL-TIME DETECTION mode.")
+                        break
+                c.release()
+            except Exception:
+                pass
+
+        if cap is None:
+            print("[Orchestrator] Notice: No physical camera accessible. Falling back to recorded demo clip...")
+            fallback_source = "clip1.mp4" if os.path.exists("clip1.mp4") else "clip.mp4"
+            if not os.path.exists(fallback_source):
+                print(f"[Orchestrator] Generating simulation video '{fallback_source}'...")
+                from tools.generate_synthetic_data import generate_experiment_video
+                generate_experiment_video(fallback_source, anomaly=False)
+            cap = cv2.VideoCapture(fallback_source)
+            source = fallback_source
+            source_type = "RECORDED_CLIP"
+    elif str(source).isdigit():
         cam_idx = int(source)
-        cap = None
-        # Try MSMF, DirectShow, and Default backends on Windows
-        for backend in [cv2.CAP_MSMF, cv2.CAP_DSHOW, cv2.CAP_ANY]:
+        for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
             try:
                 c = cv2.VideoCapture(cam_idx, backend)
                 if c.isOpened():
                     ret_test, _ = c.read()
                     if ret_test:
                         cap = c
+                        source = cam_idx
+                        source_type = "LIVE_WEBCAM"
                         break
                 c.release()
             except Exception:
                 pass
 
-        # If requested index failed (e.g. index 1), auto-probe Camera #0
         if cap is None and cam_idx != 0:
             print(f"[Warning] Camera index #{cam_idx} not responding. Probing Camera #0...")
-            for backend in [cv2.CAP_MSMF, cv2.CAP_DSHOW, cv2.CAP_ANY]:
+            for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
                 try:
                     c = cv2.VideoCapture(0, backend)
                     if c.isOpened():
@@ -122,7 +151,8 @@ def run_orchestrator(
                         if ret_test:
                             cap = c
                             source = 0
-                            print(f"[Orchestrator] Successfully engaged active Camera #0!")
+                            source_type = "LIVE_WEBCAM"
+                            print("[Orchestrator] Successfully engaged active Camera #0!")
                             break
                     c.release()
                 except Exception:
@@ -132,13 +162,13 @@ def run_orchestrator(
             print(f"[Warning] Web Camera device #{source} could not be opened (disconnected or in use).")
             fallback_source = "clip1.mp4" if os.path.exists("clip1.mp4") else "clip.mp4"
             if not os.path.exists(fallback_source):
-                print(f"[Orchestrator] Generating default simulation video...")
                 from tools.generate_synthetic_data import generate_experiment_video
                 generate_experiment_video(fallback_source, anomaly=False)
             print(f"[Orchestrator] Automatically falling back to video: '{fallback_source}'...")
             cap = cv2.VideoCapture(fallback_source)
+            source = fallback_source
+            source_type = "RECORDED_CLIP"
         else:
-            # Preserve native capture resolution and set zero-delay buffer
             try:
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             except Exception:
@@ -152,12 +182,20 @@ def run_orchestrator(
             from tools.generate_synthetic_data import generate_experiment_video
             generate_experiment_video(source, anomaly=False)
         cap = cv2.VideoCapture(source)
+        source_type = "RECORDED_CLIP"
         print(f"[Orchestrator] Ingesting from Video File: {source}...")
 
     if not cap.isOpened():
         print(f"[Error] Could not open video source: {source}")
         agent_monitoring.close()
         return
+
+    # If active camera, configure real-time zero-delay buffer
+    if source_type == "LIVE_WEBCAM":
+        try:
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        except Exception:
+            pass
 
     frame_id = 0
     t_start = time.time()
@@ -169,6 +207,71 @@ def run_orchestrator(
 
     try:
         while True:
+            # Check manual source switch request from Web Dashboard
+            new_src_req = agent_monitoring.check_source_switch_requested()
+            if new_src_req:
+                print(f"\n[Orchestrator] Video source switch requested from UI: {new_src_req}")
+                try:
+                    if str(new_src_req) in ("0", "cam", "webcam"):
+                        new_cap = None
+                        for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
+                            try:
+                                c = cv2.VideoCapture(0, backend)
+                                if c.isOpened():
+                                    ret_t, _ = c.read()
+                                    if ret_t:
+                                        new_cap = c
+                                        break
+                                c.release()
+                            except Exception:
+                                pass
+                        if new_cap is not None:
+                            if cap is not None:
+                                cap.release()
+                            cap = new_cap
+                            try:
+                                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                            except Exception:
+                                pass
+                            source = 0
+                            source_type = "LIVE_WEBCAM"
+                            print("[Orchestrator] Switched active video source to LIVE WEBCAM #0.")
+                        else:
+                            print("[Orchestrator] Hardware camera #0 not available for switch.")
+                    elif str(new_src_req) in ("clip1.mp4", "clip", "demo"):
+                        target_clip = "clip1.mp4" if os.path.exists("clip1.mp4") else "clip.mp4"
+                        new_cap = cv2.VideoCapture(target_clip)
+                        if new_cap.isOpened():
+                            if cap is not None:
+                                cap.release()
+                            cap = new_cap
+                            source = target_clip
+                            source_type = "RECORDED_CLIP"
+                            print(f"[Orchestrator] Switched active video source to RECORDED DEMO ({target_clip}).")
+                    agent_validation.reset()
+                    agent_har.reset()
+                    agent_monitoring.reset()
+                    agent_perception.last_lid_angle = 0.0
+                    frame_id = 0
+                    prev_frame_time = time.time()
+                except Exception as e:
+                    print(f"[Orchestrator] Source switch error: {e}")
+
+            # Check manual experiment switch request from Web Dashboard
+            new_exp_req = agent_monitoring.check_experiment_switch_requested()
+            if new_exp_req:
+                print(f"\n[Orchestrator] Experiment switch requested from UI: {new_exp_req}")
+                try:
+                    agent_validation.load_protocol(new_exp_req)
+                    agent_reasoning = ReasoningAgent(config_path=new_exp_req)
+                    agent_validation.reset()
+                    agent_har.reset()
+                    agent_monitoring.reset()
+                    agent_perception.last_lid_angle = 0.0
+                    print(f"[Orchestrator] Active procedure switched to {agent_validation.experiment_id} ({new_exp_req}).")
+                except Exception as e:
+                    print(f"[Orchestrator] Experiment switch error: {e}")
+
             # Check manual reset request from web client or desktop GUI
             web_reset = enable_streaming and agent_monitoring.check_reset_requested()
             gui_reset = desktop_gui and desktop_gui.check_reset_requested()
@@ -186,18 +289,28 @@ def run_orchestrator(
             ret, raw_frame = cap.read()
             if not ret:
                 # On live webcam, momentarily dropped frames should not exit or loop
-                if str(source).isdigit():
+                if str(source).isdigit() or source_type == "LIVE_WEBCAM":
                     time.sleep(0.01)
                     continue
 
-                # If experiment reached COMPLETE, hold final completed state for 4s so user/web client sees completion
+                # If experiment reached COMPLETE, hold final completed state for 3s so user/web client sees completion
                 if agent_validation.current_step == FSMStep.COMPLETE:
-                    print("\n[Orchestrator] Procedure COMPLETED successfully! Holding final state for 4 seconds...")
-                    t_hold_end = time.time() + 4.0
+                    print("\n[Orchestrator] Procedure COMPLETED successfully! Holding final state for 3 seconds...")
+                    t_hold_end = time.time() + 3.0
                     while time.time() < t_hold_end:
+                        if show_window and not desktop_gui:
+                            k = cv2.waitKey(20) & 0xFF
+                            if k == ord('q'):
+                                break
+                        if desktop_gui and desktop_gui.is_alive():
+                            try:
+                                desktop_gui.root.update_idletasks()
+                                desktop_gui.root.update()
+                            except Exception:
+                                pass
                         if agent_monitoring.check_reset_requested():
                             break
-                        time.sleep(0.1)
+                        time.sleep(0.02)
 
                 # Loop video file for continuous exhibition/testing
                 print("\n[Orchestrator] Looping experiment from Step 0...")
@@ -303,11 +416,15 @@ def run_orchestrator(
                 latency_ms=latency_ms,
                 twin_canvas=twin_canvas,
                 current_activity=current_activity,
-                llm_verification=llm_verif
+                llm_verification=llm_verif,
+                source_type=source_type,
+                is_step_correct=agent_validation.is_step_correct,
+                step_verdict=agent_validation.step_verdict,
+                experiment_id=agent_validation.experiment_id
             )
 
-            # On-Screen Video Feed Display (Native GUI Window)
-            if show_window:
+            # On-Screen Video Feed Display (Native OpenCV Window, only if Desktop GUI is NOT active)
+            if show_window and not desktop_gui:
                 try:
                     cv2.imshow("BAS Mission Control - Live Stream & Action Detection", annotated_frame)
                     key = cv2.waitKey(1) & 0xFF
@@ -343,16 +460,14 @@ def run_orchestrator(
             if trans_event:
                 print(f"\n[PROCEDURE EVENT] Milestone Committed: {trans_event} -> Step {int(step)} ({step.name})")
 
-            # Procedural Completion: Trigger Automated Offline Local LLM Audit
-            if trans_event == "BOX_CLOSED":
+            # Procedural Completion: Trigger Automated Offline Local LLM Audit (Async / Non-Blocking)
+            if trans_event in ("BOX_CLOSED", "YELLOW_BOX_EXTRACTED", "BENCHMARK_COMPLETE"):
                 print("\n" + "=" * 70)
-                print("[Orchestrator] PROCEDURE COMPLETED! Triggering Offline Local LLM Audit...")
+                print(f"[Orchestrator] PROCEDURE COMPLETED ({trans_event})! Launching Non-Blocking AI Mission Audit in background...")
                 print("=" * 70)
                 try:
-                    from src.llm.offline_llm_analyzer import analyze_session
-                    audit_res = analyze_session()
-                    rep_path = audit_res.get("report_path", "experiments/llm_analysis_report.md")
-                    print(f"[Orchestrator] LLM Audit complete. Report saved to: {rep_path}\n")
+                    from src.llm.offline_llm_analyzer import start_async_analysis
+                    start_async_analysis()
                 except Exception as e:
                     print(f"[Orchestrator] LLM Audit notice: {e}")
 
@@ -361,8 +476,9 @@ def run_orchestrator(
                 llm_step_int = llm_verif.get("verified_step", int(step))
                 llm_conf_pct = int(llm_verif.get("confidence", 0.90) * 100)
                 llm_disp = f"S{llm_step_int} ({llm_conf_pct}%)"
+                v_disp = "OK" if agent_validation.is_step_correct else "ERR"
                 sys.stdout.write(
-                    f"\r[BAS] Frame {frame_id:04d} | Step {int(step)}: {step.name:16s} | LLM: {llm_disp:10s} | Deb: {deb_count:02d}/06 | FPS: {fps:4.1f}  "
+                    f"\r[{source_type[:4]}] F{frame_id:04d} | Step {int(step)}: {step.name:16s} | Verdict: {v_disp} | LLM: {llm_disp:10s} | Deb: {deb_count:02d}/06 | FPS: {fps:4.1f}  "
                 )
                 sys.stdout.flush()
 
@@ -414,8 +530,8 @@ def run_orchestrator(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BAS Multi-Agent HAR Orchestrator")
-    parser.add_argument("--source", default="clip1.mp4",
-                        help="Video source: camera index (0) or path to MP4 (default: clip1.mp4)")
+    parser.add_argument("--source", default="auto",
+                        help="Video source: 'auto' (default: probes physical webcam #0, falls back to demo clip), camera index (0), or path to MP4")
     parser.add_argument("--config", default=None,
                         help="Path to FSM configuration file (default: auto-detected)")
     parser.add_argument("--desktop-gui", action="store_true",
@@ -432,14 +548,23 @@ if __name__ == "__main__":
                         help="Maximum frames to process (useful for automated testing)")
     parser.add_argument("--realtime-dir", type=str, default="realtime_feed",
                         help="Dedicated folder for real-time video feed CSV telemetry (default: realtime_feed)")
+    parser.add_argument("--common", action="store_true",
+                        help="Launch real-time Common Object Detection mode (COCO-80 classes: phone, bottle, cup, person, book, etc.)")
     args = parser.parse_args()
 
+    if args.common:
+        from realtime_detect import run_realtime_detection
+        run_realtime_detection(source=args.source, conf_threshold=0.30, max_frames=args.frames)
+        sys.exit(0)
+
     try:
+        # If desktop GUI is requested, suppress the duplicate raw OpenCV window
+        show_win = not args.no_window and not args.desktop_gui
         run_orchestrator(
             source=args.source,
             config_path=args.config,
             use_desktop_gui=args.desktop_gui,
-            show_window=not args.no_window,
+            show_window=show_win,
             enable_tts=not args.no_tts,
             enable_streaming=not args.no_stream,
             stream_port=args.port,

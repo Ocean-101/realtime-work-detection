@@ -102,10 +102,63 @@ class StreamHandler(BaseHTTPRequestHandler):
             self.wfile.flush()
 
         elif self.path.startswith('/api/analyze') or self.path.startswith('/analyze'):
-            # Trigger offline LLM procedural audit
-            from src.llm.offline_llm_analyzer import analyze_session
-            analysis_result = analyze_session()
-            resp = json.dumps(analysis_result).encode('utf-8')
+            # Trigger or poll offline LLM procedural audit (non-blocking)
+            from src.llm.offline_llm_analyzer import start_async_analysis, get_latest_analysis
+            latest = get_latest_analysis()
+            if latest.get("status") in ("idle", "error") or "force=true" in self.path:
+                start_async_analysis()
+                resp_data = {"status": "running", "message": "AI Mission Audit started in background..."}
+            else:
+                resp_data = latest
+            resp = json.dumps(resp_data).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(resp)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.end_headers()
+            self.wfile.write(resp)
+            self.wfile.flush()
+
+        elif self.path.startswith('/api/source') or self.path.startswith('/source'):
+            # Switch between live webcam and recorded demo clip
+            import urllib.parse
+            query = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(query)
+            target = params.get('set', [None])[0] or params.get('source', [None])[0]
+            if target:
+                if target in ('cam', 'webcam', '0', 'live'):
+                    self.server.source_switch_requested = "0"
+                else:
+                    self.server.source_switch_requested = "clip1.mp4"
+                resp = json.dumps({"status": "ok", "requested_source": self.server.source_switch_requested}).encode('utf-8')
+            else:
+                curr = getattr(self.server, 'current_source_type', 'LIVE_WEBCAM')
+                resp = json.dumps({"status": "ok", "current_source": curr}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(resp)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.end_headers()
+            self.wfile.write(resp)
+            self.wfile.flush()
+
+        elif self.path.startswith('/api/experiment') or self.path.startswith('/experiment'):
+            # Switch between available experiment protocols
+            import urllib.parse
+            query = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(query)
+            exp = params.get('set', [None])[0] or params.get('exp', [None])[0]
+            if exp:
+                if 'dual' in exp or 'isro' in exp or '26174' in exp or 'red' in exp:
+                    self.server.experiment_switch_requested = "configs/experiment_fsm.json"
+                else:
+                    self.server.experiment_switch_requested = "configs/box_return_fsm.json"
+                resp = json.dumps({"status": "ok", "requested_protocol": self.server.experiment_switch_requested}).encode('utf-8')
+            else:
+                curr_exp = getattr(self.server, 'current_experiment_id', 'BAS-EXP-BOX-RETURN')
+                resp = json.dumps({"status": "ok", "current_experiment": curr_exp}).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(resp)))
@@ -190,6 +243,32 @@ class DualVideoPipeline:
             self._server.reset_requested = False
             return True
         return False
+
+    def check_and_clear_source_switch(self) -> Optional[str]:
+        """Returns target source if a switch was requested via /api/source, and clears request."""
+        if self._server and getattr(self._server, 'source_switch_requested', None):
+            target = self._server.source_switch_requested
+            self._server.source_switch_requested = None
+            return target
+        return None
+
+    def check_and_clear_experiment_switch(self) -> Optional[str]:
+        """Returns target experiment protocol path if switch was requested, and clears request."""
+        if self._server and getattr(self._server, 'experiment_switch_requested', None):
+            target = self._server.experiment_switch_requested
+            self._server.experiment_switch_requested = None
+            return target
+        return None
+
+    def set_active_source_type(self, source_type: str):
+        """Updates the active source type string ('LIVE_WEBCAM' vs 'RECORDED_CLIP') on the server."""
+        if self._server:
+            self._server.current_source_type = source_type
+
+    def set_active_experiment_id(self, exp_id: str):
+        """Updates the active experiment identifier string on the server."""
+        if self._server:
+            self._server.current_experiment_id = exp_id
 
     def write_frame(self, frame: np.ndarray, telemetry: Optional[dict] = None):
         """Dispatches frame to local MP4 writer and encodes JPEG for streaming clients."""
