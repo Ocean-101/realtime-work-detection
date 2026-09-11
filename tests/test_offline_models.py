@@ -4,10 +4,14 @@ Validates dataset integrity, YOLO annotations, and offline model inference.
 """
 
 import os
+import sys
 import json
 import unittest
 import numpy as np
 import cv2
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from src.agents.perception_agent import PerceptionAgent
 
 
@@ -91,6 +95,14 @@ class TestOfflineDatasetAndModels(unittest.TestCase):
         objects, pose, lid_angle = agent.process_frame(dummy_frame)
         self.assertIsInstance(objects, dict)
         self.assertIsInstance(lid_angle, float)
+
+    def test_unified_dataset_and_detector_model(self):
+        """Verify unified dataset YAML and newly trained detector_offline.pt."""
+        yaml_path = "dataset/unified_detector_dataset/data.yaml"
+        self.assertTrue(os.path.exists(yaml_path), "Unified data.yaml must exist")
+        model_path = "models/detector_offline.pt"
+        self.assertTrue(os.path.exists(model_path), "detector_offline.pt must exist")
+        self.assertGreater(os.path.getsize(model_path), 5_000_000, "Model weights file must be > 5MB")
 
 
 if __name__ == "__main__":

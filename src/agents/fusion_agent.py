@@ -151,4 +151,7 @@ class FusionAgent:
         else:
             fused_pose.rom_limits_violated = False
 
+        # Forward 2D skeleton keypoints for visualization and rendering
+        fused_pose.keypoints_2d = pose_cam.keypoints_2d
+
         return fused_pose, fused_objects

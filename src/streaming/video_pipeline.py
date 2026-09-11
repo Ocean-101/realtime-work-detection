@@ -97,8 +97,16 @@ class StreamHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(len(data)))
             self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        elif self.path.startswith('/api/digital_twin') or self.path.startswith('/digital_twin'):
+            scene_graph = getattr(self.server, 'latest_scene_graph', {})
+            data_bytes = json.dumps(scene_graph).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(data_bytes)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
             self.end_headers()
-            self.wfile.write(data)
+            self.wfile.write(data_bytes)
             self.wfile.flush()
 
         elif self.path.startswith('/api/analyze') or self.path.startswith('/analyze'):
@@ -270,7 +278,7 @@ class DualVideoPipeline:
         if self._server:
             self._server.current_experiment_id = exp_id
 
-    def write_frame(self, frame: np.ndarray, telemetry: Optional[dict] = None):
+    def write_frame(self, frame: np.ndarray, telemetry: Optional[dict] = None, scene_graph: Optional[dict] = None):
         """Dispatches frame to local MP4 writer and encodes JPEG for streaming clients."""
         if frame is None:
             return
@@ -293,6 +301,8 @@ class DualVideoPipeline:
                 self._server.latest_jpeg = jpeg.tobytes()
             if telemetry is not None:
                 self._server.latest_telemetry = telemetry
+            if scene_graph is not None:
+                self._server.latest_scene_graph = scene_graph
 
     def close(self):
         self._running = False

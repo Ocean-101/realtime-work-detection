@@ -43,7 +43,8 @@ def run_orchestrator(
     enable_streaming=True,
     stream_port=8080,
     max_frames=None,
-    realtime_feed_dir="realtime_feed"
+    realtime_feed_dir="realtime_feed",
+    record_har_dataset=False
 ):
     print("=" * 70)
     print("   BHARATIYA ANTARIKSH STATION (BAS) - ON-BOARD HAR MULTI-AGENT SYSTEM")
@@ -200,6 +201,7 @@ def run_orchestrator(
     frame_id = 0
     t_start = time.time()
     prev_frame_time = t_start
+    har_records = [] if record_har_dataset else None
 
     print("[Orchestrator] Multi-Agent Pipeline Running. Press Ctrl+C or close window to exit.")
     if enable_streaming:
@@ -389,6 +391,28 @@ def run_orchestrator(
                 step, anomaly, trans_event
             )
 
+            # Record HAR Dataset Snapshot if enabled
+            if har_records is not None:
+                j_arr = np.zeros((17, 3), dtype=np.float32)
+                if fused_pose.keypoints_2d:
+                    c_names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear",
+                               "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
+                               "left_wrist", "right_wrist", "left_hip", "right_hip",
+                               "left_knee", "right_knee", "left_ankle", "right_ankle"]
+                    for ji, jn in enumerate(c_names):
+                        if jn in fused_pose.keypoints_2d:
+                            px, py, _ = fused_pose.keypoints_2d[jn]
+                            j_arr[ji] = [(px - agent_perception.cx) * 1.5 / agent_perception.fx,
+                                         (py - agent_perception.cy) * 1.5 / agent_perception.fy,
+                                         1.5]
+                har_records.append({
+                    "frame_id": frame_id,
+                    "timestamp_sec": round(time.time() - t_start, 3),
+                    "joints_3d": j_arr,
+                    "activity": current_activity,
+                    "step_id": int(step)
+                })
+
             latency_ms = (time.time() - t_infer_start) * 1000.0
 
             # Update Central Shared Memory (Digital Twin Memory Blackboard)
@@ -420,7 +444,8 @@ def run_orchestrator(
                 source_type=source_type,
                 is_step_correct=agent_validation.is_step_correct,
                 step_verdict=agent_validation.step_verdict,
-                experiment_id=agent_validation.experiment_id
+                experiment_id=agent_validation.experiment_id,
+                scene_graph=scene_graph
             )
 
             # On-Screen Video Feed Display (Native OpenCV Window, only if Desktop GUI is NOT active)
@@ -523,6 +548,16 @@ def run_orchestrator(
                 print(f"3D/Twin CSV Telemetry : {agent_monitoring.csv_logger.output_path}")
                 print(f"Latest 3D Telemetry CSV: {agent_monitoring.csv_logger.latest_symlink_path}")
                 print(f"Dedicated Real-Time CSV: {agent_monitoring.csv_logger.realtime_current_path}")
+            if record_har_dataset and har_records:
+                npz_out = os.path.join(realtime_feed_dir, "har_session_joints.npz")
+                np.savez_compressed(
+                    npz_out,
+                    joints_3d=np.array([r["joints_3d"] for r in har_records], dtype=np.float32),
+                    activities=np.array([r["activity"] for r in har_records]),
+                    step_ids=np.array([r["step_id"] for r in har_records], dtype=np.int32),
+                    timestamps=np.array([r["timestamp_sec"] for r in har_records], dtype=np.float32)
+                )
+                print(f"Session HAR Dataset NPZ : {npz_out}")
             print("=" * 70)
         except (Exception, KeyboardInterrupt):
             pass
@@ -550,6 +585,8 @@ if __name__ == "__main__":
                         help="Dedicated folder for real-time video feed CSV telemetry (default: realtime_feed)")
     parser.add_argument("--common", action="store_true",
                         help="Launch real-time Common Object Detection mode (COCO-80 classes: phone, bottle, cup, person, book, etc.)")
+    parser.add_argument("--record-har-dataset", action="store_true",
+                        help="Record and export synchronized 3D skeleton and HAR action dataset (.npz)")
     args = parser.parse_args()
 
     if args.common:
@@ -569,7 +606,8 @@ if __name__ == "__main__":
             enable_streaming=not args.no_stream,
             stream_port=args.port,
             max_frames=args.frames,
-            realtime_feed_dir=args.realtime_dir
+            realtime_feed_dir=args.realtime_dir,
+            record_har_dataset=args.record_har_dataset
         )
     except KeyboardInterrupt:
         sys.exit(0)

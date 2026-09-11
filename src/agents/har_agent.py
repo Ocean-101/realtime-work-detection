@@ -19,6 +19,8 @@ from src.core.types import (
 class HARAgent:
     """Human Activity Recognition (HAR) & Hand-Object Interaction (HOI) Agent."""
 
+    EXCLUDED_TARGETS = {"operator_hand", "hand", "person", "astronaut"}
+
     def __init__(self, contact_threshold_m: float = 0.12):
         self.contact_threshold_m = contact_threshold_m
         self.approach_threshold_m = 0.28
@@ -30,11 +32,15 @@ class HARAgent:
             "component_box": 0
         }
         self.extraction_threshold_y = 0.20 # Metric meters offset relative to container
+        self.previous_wrist_pos: Optional[Vector3D] = None
+        self.last_lid_angle: float = 0.0
 
     def reset(self):
         """Resets all HOI contact counters for a new test cycle."""
         for k in self.contact_frame_counters:
             self.contact_frame_counters[k] = 0
+        self.previous_wrist_pos = None
+        self.last_lid_angle = 0.0
 
     def evaluate_interactions(
         self,
@@ -43,56 +49,62 @@ class HARAgent:
         lid_angle: float
     ) -> Tuple[List[HOIInteraction], Dict[str, ExperimentObject], str]:
         """
-        Evaluates 3D spatial distances between astronaut hand and experimental items.
+        Evaluates 3D spatial kinematics and interactions between astronaut hand and experimental items.
         Returns:
             - active_hoi: list of HOIInteraction items
             - updated_objects: objects with updated EntityStates
-            - primary_activity: active action string
+            - primary_activity: active action string (e.g. 'OPEN LID', 'EXTRACT COMPONENT', 'IDLE')
         """
         active_hoi: List[HOIInteraction] = []
         primary_activity = "IDLE"
 
         wrist = pose.joints.get("wrist")
         if not wrist:
+            self.last_lid_angle = lid_angle
             return active_hoi, objects, primary_activity
 
         wrist_pos = wrist.pos_rack
         cont = objects.get("container_box")
         cont_pos = cont.pos_rack if cont else Vector3D()
 
-        target_names = [k for k in objects.keys() if k != "container_box"]
-        if not target_names:
-            target_names = ["component_box"]
+        # Identify manipulable target objects, strictly excluding human hands or person boxes
+        target_names = [k for k in objects.keys() if k not in self.EXCLUDED_TARGETS and k != "container_box"]
 
+        # Track lid state transitions
+        delta_lid = lid_angle - self.last_lid_angle
+        self.last_lid_angle = lid_angle
+
+        # 1. Evaluate interactions with manipulable objects (component_box, red_box, etc.)
         for obj_name in target_names:
             obj = objects.get(obj_name)
             if not obj:
                 continue
 
             dist = wrist_pos.distance_to(obj.pos_rack)
-            
+            if obj_name not in self.contact_frame_counters:
+                self.contact_frame_counters[obj_name] = 0
+
             # Determine Action Primitive
             if dist <= self.contact_threshold_m:
-                self.contact_frame_counters[obj_name] = self.contact_frame_counters.get(obj_name, 0) + 1
-                if self.contact_frame_counters[obj_name] >= 4:
+                self.contact_frame_counters[obj_name] += 1
+                if self.contact_frame_counters[obj_name] >= 3:
                     action = HOIAction.GRASP
                 else:
                     action = HOIAction.CONTACT
             elif dist <= self.approach_threshold_m:
-                self.contact_frame_counters[obj_name] = max(0, self.contact_frame_counters.get(obj_name, 0) - 1)
+                self.contact_frame_counters[obj_name] = max(0, self.contact_frame_counters[obj_name] - 1)
                 action = HOIAction.APPROACH
             else:
                 self.contact_frame_counters[obj_name] = 0
                 action = HOIAction.IDLE
 
             # Check Extraction condition for manipulable items
-            if obj_name not in ("container_box", "container_lid"):
+            if obj_name not in ("container_lid", "container_box"):
                 is_outside = False
                 if cont and cont.bbox and obj.bbox:
                     obj_cx = (obj.bbox.xmin + obj.bbox.xmax) / 2.0
                     obj_cy = (obj.bbox.ymin + obj.bbox.ymax) / 2.0
-                    # An object is extracted if lifted ABOVE the container (y < container_top)
-                    # or outside lateral boundaries
+                    # Lifted above or moved outside lateral container bounds
                     if (obj_cy < cont.bbox.ymin - 10 or 
                         obj_cx < cont.bbox.xmin - 30 or 
                         obj_cx > cont.bbox.xmax + 30):
@@ -112,14 +124,18 @@ class HARAgent:
                     if action in (HOIAction.GRASP, HOIAction.CONTACT):
                         action = HOIAction.EXTRACT
                         obj.state = EntityState.EXTRACTED
+                        primary_activity = f"EXTRACT {obj_name.replace('_', ' ').upper()}"
                     else:
                         obj.state = EntityState.RELEASED
+                        primary_activity = f"HOLD {obj_name.replace('_', ' ').upper()}"
                 else:
                     obj.is_inside_container = True
                     if action in (HOIAction.GRASP, HOIAction.CONTACT):
                         obj.state = EntityState.GRASPED
+                        primary_activity = f"GRASP {obj_name.replace('_', ' ').upper()}"
                     elif action == HOIAction.APPROACH:
                         obj.state = EntityState.APPROACHED
+                        primary_activity = f"APPROACH {obj_name.replace('_', ' ').upper()}"
                     else:
                         obj.state = EntityState.DOCKED
 
@@ -131,6 +147,45 @@ class HARAgent:
                     action=action,
                     duration_frames=self.contact_frame_counters.get(obj_name, 0)
                 ))
-                primary_activity = f"{action.value} {obj_name.replace('_', ' ').upper()}"
 
+        # 2. If no direct component interaction, evaluate container & lid interactions
+        if primary_activity == "IDLE":
+            # Check lid manipulation
+            if lid_angle >= 15.0 and abs(delta_lid) > 1.0:
+                primary_activity = "OPEN LID" if delta_lid > 0 else "CLOSING LID"
+            elif cont:
+                cont_dist = wrist_pos.distance_to(cont.pos_rack)
+                # Check if wrist is reaching inside container region
+                wrist_in_container = False
+                if cont.bbox and pose.keypoints_2d.get("right_wrist"):
+                    wx, wy, _ = pose.keypoints_2d["right_wrist"]
+                    if (cont.bbox.xmin <= wx <= cont.bbox.xmax and 
+                        cont.bbox.ymin <= wy <= cont.bbox.ymax):
+                        wrist_in_container = True
+
+                if wrist_in_container or cont_dist <= self.contact_threshold_m:
+                    primary_activity = "REACH INTO CONTAINER" if lid_angle >= 15.0 else "CONTACT CONTAINER"
+                    active_hoi.append(HOIInteraction(
+                        object_name="container_box",
+                        hand_name="right_hand",
+                        distance_m=cont_dist,
+                        action=HOIAction.CONTACT,
+                        duration_frames=1
+                    ))
+                elif cont_dist <= self.approach_threshold_m:
+                    primary_activity = "APPROACH CONTAINER"
+                    active_hoi.append(HOIInteraction(
+                        object_name="container_box",
+                        hand_name="right_hand",
+                        distance_m=cont_dist,
+                        action=HOIAction.APPROACH,
+                        duration_frames=1
+                    ))
+
+        # 3. Posture ergonomics check
+        if pose.rom_limits_violated and primary_activity != "IDLE":
+            primary_activity += " [ROM LIMIT]"
+
+        self.previous_wrist_pos = wrist_pos
         return active_hoi, objects, primary_activity
+

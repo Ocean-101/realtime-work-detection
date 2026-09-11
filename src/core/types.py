@@ -113,6 +113,8 @@ class AstronautPose3D:
     shoulder_angle_deg: float = 0.0
     body_orientation_deg: float = 0.0
     rom_limits_violated: bool = False
+    keypoints_2d: Dict[str, Tuple[float, float, float]] = field(default_factory=dict)
+
 
 
 @dataclass

@@ -77,7 +77,8 @@ class MonitoringAgent:
         source_type: str = "LIVE_WEBCAM",
         is_step_correct: bool = True,
         step_verdict: str = "CORRECT (NOMINAL)",
-        experiment_id: str = "BAS-EXP-BOX-RETURN"
+        experiment_id: str = "BAS-EXP-BOX-RETURN",
+        scene_graph: Optional[Dict[str, Any]] = None
     ) -> np.ndarray:
         """
         Synthesizes audio alerts, logs session actions to JSON, and renders live HUD overlays.
@@ -182,7 +183,7 @@ class MonitoringAgent:
                 "is_step_correct": is_step_correct,
                 "step_verdict": step_verdict,
                 "experiment_id": experiment_id
-            })
+            }, scene_graph=scene_graph)
 
         return annotated_frame
 
@@ -322,9 +323,95 @@ class MonitoringAgent:
                     cv2.FONT_HERSHEY_SIMPLEX, font_scale, (10, 10, 10), 1, cv2.LINE_AA
                 )
 
-        # 2. Draw Hand & 3D Pose Keypoints with pill label
-        wrist = pose.joints.get("wrist")
-        if wrist:
+        # 2. Draw Full Person Skeleton & Biomechanical Joints
+        if hasattr(pose, "keypoints_2d") and pose.keypoints_2d:
+            kp_dict = pose.keypoints_2d
+
+            # 17 COCO Bone Connections with specialized anatomical color-coding
+            BONE_CONNECTIONS = [
+                # Head / Face (warm gold)
+                ("nose", "left_eye", (0, 215, 255)),
+                ("nose", "right_eye", (0, 215, 255)),
+                ("left_eye", "left_ear", (0, 190, 240)),
+                ("right_eye", "right_ear", (0, 190, 240)),
+                # Shoulders & Torso (emerald green)
+                ("left_shoulder", "right_shoulder", (0, 255, 128)),
+                ("left_shoulder", "left_hip", (0, 240, 100)),
+                ("right_shoulder", "right_hip", (0, 240, 100)),
+                ("left_hip", "right_hip", (0, 255, 128)),
+                # Upper Limbs (Left Arm = Cyan, Right Arm = Amber/Orange)
+                ("left_shoulder", "left_elbow", (0, 230, 255)),
+                ("left_elbow", "left_wrist", (0, 255, 255)),
+                ("right_shoulder", "right_elbow", (255, 190, 0)),
+                ("right_elbow", "right_wrist", (255, 220, 0)),
+                # Lower Limbs (Pastel Violet / Cyan)
+                ("left_hip", "left_knee", (255, 140, 220)),
+                ("left_knee", "left_ankle", (255, 140, 220)),
+                ("right_hip", "right_knee", (220, 140, 255)),
+                ("right_knee", "right_ankle", (220, 140, 255)),
+            ]
+
+            # Render bone segments with high-contrast borders
+            line_w = max(2, int(2.5 * scale * 2))
+            for pt1_name, pt2_name, bone_col in BONE_CONNECTIONS:
+                if pt1_name in kp_dict and pt2_name in kp_dict:
+                    x1, y1, c1 = kp_dict[pt1_name]
+                    x2, y2, c2 = kp_dict[pt2_name]
+                    if c1 > 0.20 and c2 > 0.20:
+                        p1 = (int(x1), int(y1))
+                        p2 = (int(x2), int(y2))
+                        # Black drop shadow for maximum visibility
+                        cv2.line(frame, p1, p2, (15, 15, 15), line_w + 2, cv2.LINE_AA)
+                        # Main vibrant bone link
+                        cv2.line(frame, p1, p2, bone_col, line_w, cv2.LINE_AA)
+
+            # Render anatomical joint nodes
+            for j_name, (jx, jy, jconf) in kp_dict.items():
+                if jconf > 0.20:
+                    p = (int(jx), int(jy))
+                    if "wrist" in j_name:
+                        # Prominent active operator hand target ring
+                        cv2.circle(frame, p, max(7, int(9 * scale)), (10, 10, 10), -1)
+                        cv2.circle(frame, p, max(5, int(7 * scale)), (0, 255, 255), -1)
+                        cv2.circle(frame, p, max(3, int(4 * scale)), (255, 255, 255), -1)
+                        cv2.circle(frame, p, max(9, int(12 * scale)), (0, 255, 255), 1, cv2.LINE_AA)
+                    elif "elbow" in j_name or "shoulder" in j_name:
+                        # Major limb joint
+                        cv2.circle(frame, p, max(5, int(6 * scale)), (10, 10, 10), -1)
+                        cv2.circle(frame, p, max(4, int(5 * scale)), (0, 240, 120), -1)
+                        cv2.circle(frame, p, max(2, int(3 * scale)), (255, 255, 255), -1)
+                    else:
+                        # Standard joint node
+                        cv2.circle(frame, p, max(4, int(5 * scale)), (10, 10, 10), -1)
+                        cv2.circle(frame, p, max(3, int(4 * scale)), (255, 255, 255), -1)
+
+            # Label dominant active wrist pill badge
+            if "wrist" in kp_dict and kp_dict["wrist"][2] > 0.20:
+                wx, wy, _ = kp_dict["wrist"]
+                wx_i, wy_i = int(wx), int(wy)
+                w_txt = f"ASTRONAUT WRIST [{pose.elbow_angle_deg:.0f}°]"
+                w_scale = max(0.32, scale * 0.75)
+                (wtw, wth), _ = cv2.getTextSize(w_txt, cv2.FONT_HERSHEY_SIMPLEX, w_scale, 1)
+                wrx1 = max(4, min(w - wtw - 10, wx_i + 12))
+                wry1 = max(banner_h + 2, min(h - bot_h - wth - 8, wy_i - wth // 2 - 3))
+                wrx2 = wrx1 + wtw + 8
+                wry2 = wry1 + wth + 6
+
+                for (ox1, oy1, ox2, oy2) in occupied_badge_rects:
+                    if not (wrx1 + (wrx2 - wrx1) < ox1 or wrx1 > ox2 or wry1 + (wry2 - wry1) < oy1 or wry1 > oy2):
+                        wry1 = min(h - bot_h - (wry2 - wry1) - 2, oy2 + 3)
+                        wry2 = wry1 + wth + 6
+
+                cv2.rectangle(frame, (wrx1, wry1), (wrx2, wry2), (20, 20, 20), -1)
+                cv2.rectangle(frame, (wrx1, wry1), (wrx2, wry2), (0, 240, 255), 1)
+                cv2.putText(
+                    frame, w_txt,
+                    (wrx1 + 4, wry1 + wth + 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, w_scale, (0, 240, 255), 1, cv2.LINE_AA
+                )
+        elif pose.joints.get("wrist"):
+            # Fallback for single wrist extrapolation
+            wrist = pose.joints.get("wrist")
             wx = int(self.video_pipeline.resolution[0]/2 + wrist.pos_camera.x * 400) if self.video_pipeline else w//2
             wy = int(self.video_pipeline.resolution[1]/2 + wrist.pos_camera.y * 400) if self.video_pipeline else h//2
             wx = max(15, min(w - 15, wx))
@@ -332,31 +419,6 @@ class MonitoringAgent:
 
             cv2.circle(frame, (wx, wy), max(5, int(8 * scale)), (0, 240, 255), -1)
             cv2.circle(frame, (wx, wy), max(7, int(11 * scale)), (255, 255, 255), 1)
-
-            # Clean pill badge for astronaut wrist
-            w_txt = "ASTRONAUT WRIST"
-            w_scale = max(0.32, scale * 0.78)
-            (wtw, wth), _ = cv2.getTextSize(w_txt, cv2.FONT_HERSHEY_SIMPLEX, w_scale, 1)
-            wrx1 = max(4, min(w - wtw - 10, wx + 10))
-            wry1 = max(banner_h + 2, min(h - bot_h - wth - 8, wy - wth // 2 - 3))
-            wrx2 = wrx1 + wtw + 8
-            wry2 = wry1 + wth + 6
-
-            for (ox1, oy1, ox2, oy2) in occupied_badge_rects:
-                if not (wrx1 + (wrx2 - wrx1) < ox1 or wrx1 > ox2 or wry1 + (wry2 - wry1) < oy1 or wry1 > oy2):
-                    wry1 = min(h - bot_h - (wry2 - wry1) - 2, oy2 + 3)
-                    wry2 = wry1 + wth + 6
-
-            sub = frame[wry1:wry2, wrx1:wrx2]
-            if sub.size > 0:
-                dark_rect = np.full_like(sub, 20)
-                cv2.addWeighted(sub, 0.25, dark_rect, 0.75, 0, sub)
-                cv2.rectangle(frame, (wrx1, wry1), (wrx2, wry2), (0, 240, 255), 1)
-                cv2.putText(
-                    frame, w_txt,
-                    (wrx1 + 4, wry1 + wth + 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, w_scale, (0, 240, 255), 1, cv2.LINE_AA
-                )
 
         # 3. Streamlined Minimalist HUD Overlay (Header & Footer)
         overlay = frame.copy()
