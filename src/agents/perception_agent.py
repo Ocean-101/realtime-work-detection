@@ -49,6 +49,9 @@ class PerceptionAgent:
         self.K_inv = np.linalg.inv(self.K)
 
         self.last_lid_angle = 0.0
+        self.payload_was_extracted = False
+        self.payload_is_docked = False
+        self.payload_docked_frames = 0
 
         # 1. Offline YOLOv8 Deep Neural Object Detector for Experiment Protocol
         self.model = None
@@ -100,6 +103,13 @@ class PerceptionAgent:
                 print(f"[Perception Agent] Real-Time Person Skeleton Detector engaged: {pose_candidate}")
             except Exception as e:
                 print(f"[Perception Agent] Pose detector note: {e}")
+
+    def reset(self):
+        """Resets dynamic tracking state for a new test or experiment run."""
+        self.last_lid_angle = 0.0
+        self.payload_was_extracted = False
+        self.payload_is_docked = False
+        self.payload_docked_frames = 0
 
     def process_frame(
         self,
@@ -236,42 +246,7 @@ class PerceptionAgent:
                     pos_rack=self._pixel_to_camera_coord(hand_center[0], hand_center[1], depth_m=1.00)
                 )
 
-        # 5. Check grasped component payload if hand is interacting inside container area
-        if "component_box" not in objects and hand_bbox and cont_bbox:
-            hx, hy = int(hand_center[0]), int(hand_center[1])
-            # Only check if hand is physically located within or near container zone
-            is_in_container_zone = (
-                cont_bbox.xmin - 40 <= hx <= cont_bbox.xmax + 40 and
-                cont_bbox.ymin - 40 <= hy <= cont_bbox.ymax + 40
-            )
-            if is_in_container_zone:
-                roi_x1 = max(0, hx - 60)
-                roi_x2 = min(w, hx + 60)
-                roi_y1 = max(0, hy - 60)
-                roi_y2 = min(h, hy + 60)
-                hand_roi = frame[roi_y1:roi_y2, roi_x1:roi_x2]
-            if hand_roi.size > 0:
-                gray_roi = cv2.cvtColor(hand_roi, cv2.COLOR_BGR2GRAY)
-                edges_roi = cv2.Canny(gray_roi, 60, 180)
-                if np.sum(edges_roi > 0) > 250:
-                    comp_w = 80.0
-                    comp_h = 60.0
-                    item_bbox = BBox2D(
-                        xmin=max(0.0, float(hx - comp_w / 2)),
-                        ymin=max(0.0, float(hy - comp_h / 2)),
-                        xmax=min(float(w), float(hx + comp_w / 2)),
-                        ymax=min(float(h), float(hy + comp_h / 2)),
-                        confidence=0.65, class_id=2, class_name="component_box"
-                    )
-                    item_cam = self._pixel_to_camera_coord(hx, hy, depth_m=1.15)
-                    objects["component_box"] = ExperimentObject(
-                        name="component_box",
-                        class_name="component_box",
-                        bbox=item_bbox,
-                        pos_rack=item_cam
-                    )
-
-        # 6. Fallback for ISRO Dual-Box benchmark objects (Red Box, Yellow Box) - strict geometric check
+        # 5. Fallback for ISRO Dual-Box benchmark objects (Red Box, Yellow Box) - strict geometric check
         if "red_box" not in objects:
             mask_red1 = cv2.inRange(hsv, np.array([0, 110, 80]), np.array([10, 255, 255]))
             mask_red2 = cv2.inRange(hsv, np.array([170, 110, 80]), np.array([180, 255, 255]))
@@ -288,7 +263,7 @@ class PerceptionAgent:
                 yel_cam = self._pixel_to_camera_coord(yel_center[0], yel_center[1], depth_m=1.15)
                 objects["yellow_box"] = ExperimentObject(name="yellow_box", class_name="yellow_box", bbox=yel_bbox, pos_rack=yel_cam)
 
-        # 7. Compute Lid Elevation Angle
+        # 6. Compute Lid Elevation Angle
         if "container_lid" in objects and objects["container_lid"].bbox:
             lid_b = objects["container_lid"].bbox
             if cont_bbox:
@@ -306,7 +281,7 @@ class PerceptionAgent:
         self.last_lid_angle = 0.75 * self.last_lid_angle + 0.25 * target_angle
         lid_angle = self.last_lid_angle
 
-        # Construct 3D Astronaut Pose in Camera Space
+        # 7. Construct 3D Astronaut Pose in Camera Space
         pose = self._estimate_3d_pose(frame, hand_bbox, hand_center, w, h)
 
         # If hand bbox was not found by object detector, register hand from detected skeleton wrist
@@ -327,7 +302,183 @@ class PerceptionAgent:
                     pos_rack=self._pixel_to_camera_coord(wx, wy, depth_m=1.00)
                 )
 
+        # 8. Resolve Component Box Payload & Extraction / Return State
+        self._resolve_component_box(frame, objects, cont_bbox, lid_angle, pose, w, h)
+
         return objects, pose, lid_angle
+
+    def _resolve_component_box(
+        self,
+        frame: np.ndarray,
+        objects: Dict[str, ExperimentObject],
+        cont_bbox: Optional[BBox2D],
+        lid_angle: float,
+        pose: AstronautPose3D,
+        w: int,
+        h: int
+    ):
+        """
+        Deterministically tracks and resolves the component_box payload state:
+        - Detects when the component is extracted into mid-air outside the container.
+        - Detects when the component is returned back inside the container cavity.
+        - Tracks the lifecycle across the complete procedural sequence.
+        """
+        if not cont_bbox:
+            return
+
+        cont_ymin = cont_bbox.ymin
+        cont_cx = (cont_bbox.xmin + cont_bbox.xmax) / 2.0
+        cont_cy = (cont_bbox.ymin + cont_bbox.ymax) / 2.0
+
+        # Extract detected wrists from pose
+        wrists = []
+        if pose and hasattr(pose, "keypoints_2d"):
+            for k in ("wrist", "left_wrist", "right_wrist"):
+                if k in pose.keypoints_2d:
+                    wx, wy, c = pose.keypoints_2d[k]
+                    if c > 0.30:
+                        wrists.append((wx, wy))
+        if not wrists and "operator_hand" in objects and objects["operator_hand"].bbox:
+            hb = objects["operator_hand"].bbox
+            wrists.append(((hb.xmin + hb.xmax) / 2.0, (hb.ymin + hb.ymax) / 2.0))
+
+        # Check if neural model detected component_box
+        comp = objects.get("component_box")
+        if comp and comp.bbox:
+            comp_cy = (comp.bbox.ymin + comp.bbox.ymax) / 2.0
+            if comp_cy < cont_ymin - 20:
+                comp.is_inside_container = False
+                comp.state = EntityState.EXTRACTED
+                self.payload_was_extracted = True
+            else:
+                comp.is_inside_container = True
+                comp.state = EntityState.DOCKED
+            return
+
+        # Check for mid-air extracted cardboard payload contour (strictly above container flaps in torso zone)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        lower_brown = np.array([8, 25, 50])
+        upper_brown = np.array([30, 235, 240])
+        mask = cv2.inRange(hsv, lower_brown, upper_brown)
+
+        # Container flaps elevate up to (cont_ymin - 120). Component box when extracted is held in upper torso space (y < 500)
+        air_boundary_y = min(500, int(cont_ymin - 140))
+        mask_air = mask.copy()
+        mask_air[max(0, air_boundary_y):, :] = 0
+        mask_air[:, :max(0, int(0.28 * w))] = 0
+        mask_air[:, min(w, int(0.72 * w)):] = 0
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        mask_air = cv2.morphologyEx(mask_air, cv2.MORPH_OPEN, kernel)
+        contours, _ = cv2.findContours(mask_air, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        found_payload = None
+        max_area = 0
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area > 4000:
+                x, y, bw, bh = cv2.boundingRect(c)
+                aspect = bh / float(max(1, bw))
+                if bh >= 95 and aspect >= 0.70:
+                    near_wrist = False
+                    if wrists:
+                        for wx, wy in wrists:
+                            if wy < air_boundary_y + 40 and (x - 120 <= wx <= x + bw + 120) and (y - 120 <= wy <= y + bh + 120):
+                                near_wrist = True
+                                break
+                    else:
+                        near_wrist = True
+
+                    if near_wrist and area > max_area:
+                        max_area = area
+                        found_payload = (x, y, bw, bh)
+
+        wrists_elevated = any(wy < min(500, int(cont_ymin - 140)) for wx, wy in wrists) if wrists else False
+
+        if found_payload:
+            self.payload_is_docked = False
+            self.payload_docked_frames = 0
+            px, py, pbw, pbh = found_payload
+            item_bbox = BBox2D(
+                xmin=float(px), ymin=float(py),
+                xmax=float(px + pbw), ymax=float(py + pbh),
+                confidence=0.88, class_id=2, class_name="component_box"
+            )
+            pcx, pcy = px + pbw / 2.0, py + pbh / 2.0
+            objects["component_box"] = ExperimentObject(
+                name="component_box",
+                class_name="component_box",
+                bbox=item_bbox,
+                pos_rack=self._pixel_to_camera_coord(pcx, pcy, depth_m=1.15),
+                state=EntityState.EXTRACTED,
+                is_inside_container=False
+            )
+            self.payload_was_extracted = True
+            return
+
+        # If payload was extracted, NOT yet docked into container, and wrists are still elevated high in torso workspace
+        if self.payload_was_extracted and not self.payload_is_docked and wrists_elevated:
+            elevated_wrists = [wy for wx, wy in wrists if wy < min(500, int(cont_ymin - 140))]
+            if elevated_wrists:
+                avg_wx = float(np.mean([wx for wx, wy in wrists if wy < min(500, int(cont_ymin - 140))]))
+                avg_wy = float(np.mean(elevated_wrists))
+                item_bbox = BBox2D(
+                    xmin=max(0.0, avg_wx - 70.0), ymin=max(0.0, avg_wy - 70.0),
+                    xmax=min(float(w), avg_wx + 70.0), ymax=min(float(h), avg_wy + 70.0),
+                    confidence=0.82, class_id=2, class_name="component_box"
+                )
+                objects["component_box"] = ExperimentObject(
+                    name="component_box",
+                    class_name="component_box",
+                    bbox=item_bbox,
+                    pos_rack=self._pixel_to_camera_coord(avg_wx, avg_wy, depth_m=1.15),
+                    state=EntityState.EXTRACTED,
+                    is_inside_container=False
+                )
+                return
+
+        # If not in air:
+        # Case A: previously extracted, now returned inside container
+        if self.payload_was_extracted:
+            self.payload_docked_frames += 1
+            if self.payload_docked_frames >= 5:
+                self.payload_is_docked = True
+            comp_w = max(60.0, cont_bbox.width * 0.40)
+            comp_h = max(50.0, cont_bbox.height * 0.25)
+            in_bbox = BBox2D(
+                xmin=max(0.0, float(cont_cx - comp_w / 2)),
+                ymin=max(0.0, float(cont_cy - comp_h / 2)),
+                xmax=min(float(w), float(cont_cx + comp_w / 2)),
+                ymax=min(float(h), float(cont_cy + comp_h / 2)),
+                confidence=0.85, class_id=2, class_name="component_box"
+            )
+            objects["component_box"] = ExperimentObject(
+                name="component_box",
+                class_name="component_box",
+                bbox=in_bbox,
+                pos_rack=objects["container_box"].pos_rack,
+                state=EntityState.DOCKED,
+                is_inside_container=True
+            )
+        # Case B: Box is open, but component has not yet been extracted (docked in cavity)
+        elif lid_angle > 15.0 or "container_lid" in objects:
+            comp_w = max(60.0, cont_bbox.width * 0.40)
+            comp_h = max(50.0, cont_bbox.height * 0.25)
+            in_bbox = BBox2D(
+                xmin=max(0.0, float(cont_cx - comp_w / 2)),
+                ymin=max(0.0, float(cont_cy - comp_h / 2)),
+                xmax=min(float(w), float(cont_cx + comp_w / 2)),
+                ymax=min(float(h), float(cont_cy + comp_h / 2)),
+                confidence=0.80, class_id=2, class_name="component_box"
+            )
+            objects["component_box"] = ExperimentObject(
+                name="component_box",
+                class_name="component_box",
+                bbox=in_bbox,
+                pos_rack=objects["container_box"].pos_rack,
+                state=EntityState.DOCKED,
+                is_inside_container=True
+            )
 
     def _extract_largest_bbox(
         self,
@@ -366,32 +517,32 @@ class PerceptionAgent:
         return bbox, (x + bw / 2.0, y + bh / 2.0)
 
     def _estimate_lid_angle(self, frame: np.ndarray, cont_bbox: Optional[BBox2D]) -> float:
-        """Estimates container lid elevation angle."""
+        """Estimates container lid elevation angle based on cardboard flaps above container."""
         if not cont_bbox:
             return self.last_lid_angle
 
-        # Check upper region above container for lid contour presence
+        # Check upper region above container for lid flap presence (cardboard brown)
         y_top = int(cont_bbox.ymin)
         y_search_top = max(0, y_top - 160)
-        x1 = int(cont_bbox.xmin)
-        x2 = int(cont_bbox.xmax)
-        
+        x1 = max(0, int(cont_bbox.xmin - 30))
+        x2 = min(frame.shape[1], int(cont_bbox.xmax + 30))
+
         crop = frame[y_search_top:y_top, x1:x2]
         if crop.size == 0:
             return self.last_lid_angle
 
-        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(gray, 40, 120)
-        edge_density = np.sum(edges > 0) / edges.size
+        hsv_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        mask_brown = cv2.inRange(hsv_crop, np.array([8, 25, 50]), np.array([30, 235, 240]))
+        brown_density = np.sum(mask_brown > 0) / mask_brown.size
 
-        # If significant edges exist above container box, lid is elevated
-        if edge_density > 0.04:
-            target_angle = min(75.0, edge_density * 900.0)
+        # If significant elevated cardboard flap is visible above container box, lid is elevated
+        if brown_density > 0.04:
+            target_angle = min(75.0, max(28.0, (brown_density / 0.25) * 60.0))
         else:
             target_angle = 0.0
 
-        # Smooth angle
-        self.last_lid_angle = 0.8 * self.last_lid_angle + 0.2 * target_angle
+        # Smooth angle transitions
+        self.last_lid_angle = 0.75 * self.last_lid_angle + 0.25 * target_angle
         return self.last_lid_angle
 
     def _pixel_to_camera_coord(self, u: float, v: float, depth_m: float) -> Vector3D:

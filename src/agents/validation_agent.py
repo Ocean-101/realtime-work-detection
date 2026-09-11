@@ -228,9 +228,8 @@ class ValidationAgent:
             # Step 0: IDLE -> Awaiting Box Open
             if self.current_step == FSMStep.IDLE:
                 is_opening = (
-                    lid_angle >= 18.0
+                    lid_angle >= 22.0
                     or ("container_lid" in objects and objects["container_lid"].bbox is not None)
-                    or (llm_step_val is not None and llm_step_val >= 1 and llm_confidence >= 0.70)
                 )
                 if is_opening:
                     self._accumulate_debounce(FSMStep.BOX_OPENED)
@@ -239,6 +238,8 @@ class ValidationAgent:
                         self.candidate_step = None
                         self.debounce_counter = 0
                         self.step_start_time = now
+                        self.is_step_correct = True
+                        self.step_verdict = "STEP OK: Nominal Procedure"
                         transition_committed = "BOX_OPENED"
                 else:
                     self._reset_debounce()
@@ -248,7 +249,7 @@ class ValidationAgent:
                 # Check premature close anomaly
                 if lid_angle <= 10.0:
                     self.anomaly_debounce_counter += 1
-                    if self.anomaly_debounce_counter >= 5:
+                    if self.anomaly_debounce_counter >= 8:
                         if not (llm_verification and llm_verification.get("anomaly_verdict") == "NOMINAL"):
                             self.anomaly_status = AnomalyType.ERROR_SKIP
                             self.anomaly_message = "Warning: Step skipped. Please extract the object before closing the box."
@@ -257,19 +258,22 @@ class ValidationAgent:
                             return self.current_step, 0, self.anomaly_status, self.anomaly_message, None
                 else:
                     self.anomaly_debounce_counter = 0
+                    if self.anomaly_status == AnomalyType.ERROR_SKIP:
+                        self.anomaly_status = AnomalyType.NONE
+                        self.anomaly_message = ""
+                        self.is_step_correct = True
+                        self.step_verdict = "STEP OK: Nominal Procedure"
 
-                # Check if manipulable object is extracted outside the box
+                # Check if manipulable object is physically extracted outside the box
                 extracted = False
+                EXCLUDED_NON_PAYLOAD = {"container_box", "container_lid", "operator_hand", "human_body", "person"}
                 for name, obj in objects.items():
-                    if name not in ("container_box", "container_lid"):
+                    if name in ("component_box", "red_box", "yellow_box") or (name not in EXCLUDED_NON_PAYLOAD):
                         if not obj.is_inside_container or obj.state == EntityState.EXTRACTED:
                             extracted = True
                             break
 
                 if not extracted and any(h.action == HOIAction.EXTRACT for h in active_hoi):
-                    extracted = True
-
-                if not extracted and (llm_step_val == 2 and llm_confidence >= 0.75):
                     extracted = True
 
                 if extracted:
@@ -293,7 +297,7 @@ class ValidationAgent:
                 # Check premature close anomaly
                 if lid_angle <= 10.0:
                     self.anomaly_debounce_counter += 1
-                    if self.anomaly_debounce_counter >= 5:
+                    if self.anomaly_debounce_counter >= 8:
                         if not (llm_verification and llm_verification.get("anomaly_verdict") == "NOMINAL"):
                             self.anomaly_status = AnomalyType.ERROR_SEQ
                             self.anomaly_message = "Warning: Procedural error. The object has not been returned to the box."
@@ -302,21 +306,24 @@ class ValidationAgent:
                             return self.current_step, 0, self.anomaly_status, self.anomaly_message, None
                 else:
                     self.anomaly_debounce_counter = 0
+                    if self.anomaly_status == AnomalyType.ERROR_SEQ:
+                        self.anomaly_status = AnomalyType.NONE
+                        self.anomaly_message = ""
+                        self.is_step_correct = True
+                        self.step_verdict = "STEP OK: Nominal Procedure"
 
-                # Check if object has returned back inside container
+                # Check if object has physically returned back inside container cavity
                 all_inside = True
                 found_target = False
+                EXCLUDED_NON_PAYLOAD = {"container_box", "container_lid", "operator_hand", "human_body", "person"}
                 for name, obj in objects.items():
-                    if name not in ("container_box", "container_lid"):
+                    if name in ("component_box", "red_box", "yellow_box") or (name not in EXCLUDED_NON_PAYLOAD):
                         found_target = True
-                        if not obj.is_inside_container:
+                        if not obj.is_inside_container or obj.state == EntityState.EXTRACTED:
                             all_inside = False
                             break
 
                 returned = (found_target and all_inside)
-                if not returned and (llm_step_val == 3 and llm_confidence >= 0.75):
-                    returned = True
-
                 if returned:
                     self._accumulate_debounce(FSMStep.OBJECT_RETURNED)
                     if self.debounce_counter >= self.debounce_required:
@@ -327,6 +334,8 @@ class ValidationAgent:
                         self.anomaly_status = AnomalyType.NONE
                         self.anomaly_message = ""
                         self.anomaly_debounce_counter = 0
+                        self.is_step_correct = True
+                        self.step_verdict = "STEP OK: Nominal Procedure"
                         transition_committed = "OBJECT_RETURNED"
                 else:
                     self._reset_debounce()
@@ -334,8 +343,8 @@ class ValidationAgent:
             # Step 3: OBJECT_RETURNED -> Awaiting Box Close
             elif self.current_step == FSMStep.OBJECT_RETURNED:
                 is_closed = (
-                    lid_angle < 22.0
-                    or (llm_step_val == 4 and llm_confidence >= 0.75)
+                    lid_angle <= 28.0
+                    and ("container_lid" not in objects or objects["container_lid"].bbox is None)
                 )
                 if is_closed:
                     self._accumulate_debounce(FSMStep.COMPLETE)
@@ -346,6 +355,8 @@ class ValidationAgent:
                         self.step_start_time = now
                         self.anomaly_status = AnomalyType.NONE
                         self.anomaly_message = ""
+                        self.is_step_correct = True
+                        self.step_verdict = "VERIFIED COMPLETE (NOMINAL)"
                         transition_committed = "BOX_CLOSED"
                 else:
                     self._reset_debounce()
@@ -353,9 +364,11 @@ class ValidationAgent:
             # Step 4: COMPLETE
             elif self.current_step == FSMStep.COMPLETE:
                 self.debounce_counter = self.debounce_required
+                self.is_step_correct = True
+                self.step_verdict = "VERIFIED COMPLETE (NOMINAL)"
                 if (now - self.step_start_time) >= 3.0:
                     is_reopening = (
-                        lid_angle >= 18.0
+                        lid_angle >= 25.0
                         or ("container_lid" in objects and objects["container_lid"].bbox is not None)
                     )
                     if is_reopening:
