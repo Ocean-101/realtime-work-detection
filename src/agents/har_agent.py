@@ -19,7 +19,7 @@ from src.core.types import (
 class HARAgent:
     """Human Activity Recognition (HAR) & Hand-Object Interaction (HOI) Agent."""
 
-    EXCLUDED_TARGETS = {"operator_hand", "hand", "person", "astronaut"}
+    EXCLUDED_TARGETS = {"operator_hand", "hand", "person", "astronaut", "human_body"}
 
     def __init__(self, contact_threshold_m: float = 0.12):
         self.contact_threshold_m = contact_threshold_m
@@ -31,6 +31,7 @@ class HARAgent:
             "container_lid": 0,
             "component_box": 0
         }
+        self.previously_extracted: Dict[str, bool] = {}
         self.extraction_threshold_y = 0.20 # Metric meters offset relative to container
         self.previous_wrist_pos: Optional[Vector3D] = None
         self.last_lid_angle: float = 0.0
@@ -39,6 +40,7 @@ class HARAgent:
         """Resets all HOI contact counters for a new test cycle."""
         for k in self.contact_frame_counters:
             self.contact_frame_counters[k] = 0
+        self.previously_extracted.clear()
         self.previous_wrist_pos = None
         self.last_lid_angle = 0.0
 
@@ -121,21 +123,26 @@ class HARAgent:
 
                 if is_outside:
                     obj.is_inside_container = False
+                    self.previously_extracted[obj_name] = True
                     if action in (HOIAction.GRASP, HOIAction.CONTACT):
                         action = HOIAction.EXTRACT
                         obj.state = EntityState.EXTRACTED
-                        primary_activity = f"EXTRACT {obj_name.replace('_', ' ').upper()}"
+                        primary_activity = f"PICKING {obj_name.replace('_', ' ').upper()}"
                     else:
                         obj.state = EntityState.RELEASED
-                        primary_activity = f"HOLD {obj_name.replace('_', ' ').upper()}"
+                        primary_activity = f"HOLDING {obj_name.replace('_', ' ').upper()}"
                 else:
                     obj.is_inside_container = True
-                    if action in (HOIAction.GRASP, HOIAction.CONTACT):
+                    was_outside = self.previously_extracted.get(obj_name, False)
+                    if was_outside:
+                        obj.state = EntityState.DOCKED
+                        primary_activity = f"RETURNING {obj_name.replace('_', ' ').upper()} INTO BOX"
+                    elif action in (HOIAction.GRASP, HOIAction.CONTACT):
                         obj.state = EntityState.GRASPED
-                        primary_activity = f"GRASP {obj_name.replace('_', ' ').upper()}"
+                        primary_activity = f"GRASPING {obj_name.replace('_', ' ').upper()}"
                     elif action == HOIAction.APPROACH:
                         obj.state = EntityState.APPROACHED
-                        primary_activity = f"APPROACH {obj_name.replace('_', ' ').upper()}"
+                        primary_activity = f"APPROACHING {obj_name.replace('_', ' ').upper()}"
                     else:
                         obj.state = EntityState.DOCKED
 
@@ -151,8 +158,8 @@ class HARAgent:
         # 2. If no direct component interaction, evaluate container & lid interactions
         if primary_activity == "IDLE":
             # Check lid manipulation
-            if lid_angle >= 15.0 and abs(delta_lid) > 1.0:
-                primary_activity = "OPEN LID" if delta_lid > 0 else "CLOSING LID"
+            if lid_angle >= 15.0 and abs(delta_lid) > 0.6:
+                primary_activity = "OPENING CONTAINER" if delta_lid > 0 else "CLOSING CONTAINER"
             elif cont:
                 cont_dist = wrist_pos.distance_to(cont.pos_rack)
                 # Check if wrist is reaching inside container region
@@ -164,7 +171,7 @@ class HARAgent:
                         wrist_in_container = True
 
                 if wrist_in_container or cont_dist <= self.contact_threshold_m:
-                    primary_activity = "REACH INTO CONTAINER" if lid_angle >= 15.0 else "CONTACT CONTAINER"
+                    primary_activity = "REACHING INTO BOX" if lid_angle >= 15.0 else "CONTACTING CONTAINER"
                     active_hoi.append(HOIInteraction(
                         object_name="container_box",
                         hand_name="right_hand",

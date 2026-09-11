@@ -233,7 +233,8 @@ class MonitoringAgent:
             "component_box": (255, 140, 0),
             "red_box": (60, 70, 255),
             "yellow_box": (0, 230, 255),
-            "person": (255, 215, 0),
+            "human_body": (0, 215, 255),
+            "person": (0, 215, 255),
             "cell phone": (0, 255, 128),
             "bottle": (255, 105, 180),
             "cup": (255, 140, 0),
@@ -253,11 +254,11 @@ class MonitoringAgent:
             bgr = cv2.cvtColor(hsv_pix, cv2.COLOR_HSV2BGR)[0][0]
             return (int(bgr[0]), int(bgr[1]), int(bgr[2]))
 
-        # Strict Filter: ONLY label experiment things on screen (container, lid, component payload, hands)
-        # Suppress all background clutter (person, chair, laptop, desk, etc.)
+        # Strict Filter: ONLY label experiment things on screen (container, lid, component payload, hands, human body)
+        # Suppress arbitrary background clutter (chair, laptop, desk, etc.)
         EXPERIMENT_ALLOWED_NAMES = {
             "container_box", "container_lid", "component_box",
-            "red_box", "yellow_box", "astronaut_hand", "operator_hand"
+            "red_box", "yellow_box", "astronaut_hand", "operator_hand", "human_body"
         }
 
         occupied_badge_rects: List[Tuple[int, int, int, int]] = []
@@ -265,7 +266,7 @@ class MonitoringAgent:
         for name, obj in objects.items():
             is_experiment_thing = (
                 name in EXPERIMENT_ALLOWED_NAMES
-                or any(k in name for k in ("container", "box", "lid", "component", "hand"))
+                or any(k in name for k in ("container", "box", "lid", "component", "hand", "human"))
             )
             if not is_experiment_thing:
                 continue
@@ -284,6 +285,9 @@ class MonitoringAgent:
                 elif "component_box" in name:
                     c_tag = f" ({obj.class_name.upper()})" if obj.class_name and obj.class_name != "component_box" else ""
                     status_txt = f"COMPONENT{c_tag} [{obj.state.value}]"
+                elif "human_body" in name:
+                    c_conf = f" {int(obj.bbox.confidence * 100)}%" if obj.bbox and obj.bbox.confidence else ""
+                    status_txt = f"HUMAN BODY{c_conf}"
                 elif "red_box" in name:
                     status_txt = f"RED BOX [{obj.state.value}]"
                 elif "yellow_box" in name:
@@ -499,19 +503,19 @@ class MonitoringAgent:
         doing_end = 10 + dw + 18
 
         # Real-time Step Correctness Pill
-        verd_txt = "STEP: OK" if is_step_correct else "STEP: ERR"
-        verd_col = (0, 230, 120) if is_step_correct else (40, 60, 255)
-        (vw, vh), _ = cv2.getTextSize(verd_txt, cv2.FONT_HERSHEY_SIMPLEX, act_scale, 1)
+        verd_txt = "STEP: OK" if is_step_correct else "WRONG STEP!"
+        verd_col = (0, 230, 120) if is_step_correct else (20, 30, 255)
+        (vw, vh), _ = cv2.getTextSize(verd_txt, cv2.FONT_HERSHEY_SIMPLEX, act_scale, 2 if not is_step_correct else 1)
         vx1 = doing_end
-        cv2.rectangle(frame, (vx1, h - bot_h + 4), (vx1 + vw + 12, h - 4), (15, 30, 25) if is_step_correct else (45, 18, 22), -1)
-        cv2.rectangle(frame, (vx1, h - bot_h + 4), (vx1 + vw + 12, h - 4), verd_col, 1)
-        cv2.putText(frame, verd_txt, (vx1 + 6, bot_y), cv2.FONT_HERSHEY_SIMPLEX, act_scale, verd_col, 1, cv2.LINE_AA)
+        cv2.rectangle(frame, (vx1, h - bot_h + 4), (vx1 + vw + 14, h - 4), (15, 30, 25) if is_step_correct else (20, 20, 180), -1)
+        cv2.rectangle(frame, (vx1, h - bot_h + 4), (vx1 + vw + 14, h - 4), (255, 255, 255) if not is_step_correct else verd_col, 2 if not is_step_correct else 1)
+        cv2.putText(frame, verd_txt, (vx1 + 6, bot_y), cv2.FONT_HERSHEY_SIMPLEX, act_scale, (255, 255, 255) if not is_step_correct else verd_col, 2 if not is_step_correct else 1, cv2.LINE_AA)
 
-        guide_start = vx1 + vw + 18
+        guide_start = vx1 + vw + 20
 
         # Guidance / Alert Text on the right with safe truncation
-        guide_col = (80, 100, 255) if anomaly != AnomalyType.NONE else (255, 255, 255)
-        prefix = "ALERT: " if anomaly != AnomalyType.NONE else "NEXT: "
+        guide_col = (60, 90, 255) if (anomaly != AnomalyType.NONE or not is_step_correct) else (255, 255, 255)
+        prefix = "ALERT: " if (anomaly != AnomalyType.NONE or not is_step_correct) else "NEXT: "
         full_guide = f"{prefix}{instruction}"
 
         guide_scale = max(0.34, scale * 0.82)
@@ -528,6 +532,19 @@ class MonitoringAgent:
 
         if avail_width > 40:
             cv2.putText(frame, display_guide, (guide_start, bot_y), cv2.FONT_HERSHEY_SIMPLEX, guide_scale, guide_col, 1, cv2.LINE_AA)
+
+        # Prominent Central Alert Banner for WRONG STEP
+        if anomaly != AnomalyType.NONE or not is_step_correct:
+            warn_txt = f"WRONG STEP DETECTED: {instruction.upper()}"
+            w_scale = max(0.38, scale * 0.95)
+            (wtw, wth), _ = cv2.getTextSize(warn_txt, cv2.FONT_HERSHEY_SIMPLEX, w_scale, 2)
+            wx1 = max(10, (w - wtw) // 2 - 14)
+            wy1 = banner_h + 8
+            wx2 = min(w - 10, wx1 + wtw + 28)
+            wy2 = wy1 + wth + 14
+            cv2.rectangle(frame, (wx1, wy1), (wx2, wy2), (15, 15, 200), -1)
+            cv2.rectangle(frame, (wx1, wy1), (wx2, wy2), (255, 255, 255), 2)
+            cv2.putText(frame, warn_txt, (wx1 + 14, wy1 + wth + 7), cv2.FONT_HERSHEY_SIMPLEX, w_scale, (255, 255, 255), 2, cv2.LINE_AA)
 
         return frame
 

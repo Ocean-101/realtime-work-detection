@@ -253,7 +253,7 @@ class ValidationAgent:
                             self.anomaly_status = AnomalyType.ERROR_SKIP
                             self.anomaly_message = "Warning: Step skipped. Please extract the object before closing the box."
                             self.is_step_correct = False
-                            self.step_verdict = "PROCEDURAL ERROR [ERROR_SKIP]"
+                            self.step_verdict = "WRONG STEP: Box closed before extracting object! [ERROR_SKIP]"
                             return self.current_step, 0, self.anomaly_status, self.anomaly_message, None
                 else:
                     self.anomaly_debounce_counter = 0
@@ -282,6 +282,8 @@ class ValidationAgent:
                         self.anomaly_status = AnomalyType.NONE
                         self.anomaly_message = ""
                         self.anomaly_debounce_counter = 0
+                        self.is_step_correct = True
+                        self.step_verdict = "STEP OK: Nominal Procedure"
                         transition_committed = "OBJECT_EXTRACTED"
                 else:
                     self._reset_debounce()
@@ -296,7 +298,7 @@ class ValidationAgent:
                             self.anomaly_status = AnomalyType.ERROR_SEQ
                             self.anomaly_message = "Warning: Procedural error. The object has not been returned to the box."
                             self.is_step_correct = False
-                            self.step_verdict = "PROCEDURAL ERROR [ERROR_SEQ]"
+                            self.step_verdict = "WRONG STEP: Object not returned into box before closing! [ERROR_SEQ]"
                             return self.current_step, 0, self.anomaly_status, self.anomaly_message, None
                 else:
                     self.anomaly_debounce_counter = 0

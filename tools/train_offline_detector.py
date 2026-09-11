@@ -7,10 +7,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def train_offline_detector(
-    data_yaml="dataset/unified_detector_dataset/data.yaml",
+    data_yaml="dataset/box_manipulation_dataset/data.yaml",
     output_model="models/detector_offline.pt",
-    epochs=15,
-    img_size=512,
+    epochs=12,
+    img_size=416,
     batch_size=16,
     device=None,
     workers=None
@@ -23,7 +23,7 @@ def train_offline_detector(
         device = 0 if torch.cuda.is_available() else "cpu"
 
     if workers is None:
-        workers = 4 if device != "cpu" else min(4, os.cpu_count() or 2)
+        workers = 0 if device == "cpu" else min(4, os.cpu_count() or 2)
 
     print("=" * 70)
     print("   BHARATIYA ANTARIKSH STATION (BAS) - OFFLINE YOLOv8 OBJECT DETECTOR")
@@ -36,6 +36,15 @@ def train_offline_detector(
 
     if not os.path.exists(data_yaml):
         raise FileNotFoundError(f"data.yaml not found: {data_yaml}")
+
+    # Backup existing checkpoint if present
+    if os.path.exists(output_model):
+        backup_path = output_model.replace(".pt", ".backup.pt")
+        try:
+            shutil.copyfile(output_model, backup_path)
+            print(f"[Backup] Saved prior checkpoint to: {backup_path}")
+        except Exception:
+            pass
 
     # Disable wandb and cloud trackers
     os.environ["WANDB_MODE"] = "disabled"
@@ -79,11 +88,11 @@ def train_offline_detector(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="dataset/unified_detector_dataset/data.yaml", help="Path to data.yaml")
+    parser.add_argument("--dataset", type=str, default="dataset/box_manipulation_dataset/data.yaml", help="Path to data.yaml")
     parser.add_argument("--output", type=str, default="models/detector_offline.pt", help="Path to save output model")
-    parser.add_argument("--epochs", type=int, default=15, help="Number of training epochs")
+    parser.add_argument("--epochs", type=int, default=12, help="Number of training epochs")
     parser.add_argument("--batch", type=int, default=16, help="Batch size")
-    parser.add_argument("--imgsz", type=int, default=512, help="Image resolution size")
+    parser.add_argument("--imgsz", type=int, default=416, help="Image resolution size")
     parser.add_argument("--device", type=str, default=None, help="Device (0, cpu, etc.)")
     args = parser.parse_args()
     train_offline_detector(

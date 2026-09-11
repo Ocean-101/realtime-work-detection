@@ -124,7 +124,10 @@ class PerceptionAgent:
                 # conf=0.35 cleanly rejects background clutter while preserving real boxes (conf ~0.85-0.97)
                 results = self.model(frame, verbose=False, conf=0.35)
                 if results and len(results) > 0 and results[0].boxes:
-                    class_names = {0: "container_box", 1: "container_lid", 2: "component_box", 3: "operator_hand"}
+                    class_names = getattr(self.model, "names", {
+                        0: "container_box", 1: "container_lid", 2: "component_box",
+                        3: "operator_hand", 4: "human_body"
+                    })
                     boxes_sorted = sorted(results[0].boxes, key=lambda b: float(b.conf[0].item()), reverse=True)
                     frame_area = float(w * h)
                     for box in boxes_sorted:
@@ -148,7 +151,7 @@ class PerceptionAgent:
                         )
                         center = ((bx1 + bx2) / 2.0, (by1 + by2) / 2.0)
 
-                        if cls_id == 3:
+                        if cls_id == 3 or name == "operator_hand":
                             if not hand_bbox:
                                 hand_bbox = b
                                 hand_center = center
@@ -157,6 +160,15 @@ class PerceptionAgent:
                                     class_name="operator_hand",
                                     bbox=b,
                                     pos_rack=self._pixel_to_camera_coord(center[0], center[1], depth_m=1.00)
+                                )
+                        elif cls_id == 4 or name in ("human_body", "person"):
+                            if "human_body" not in objects:
+                                obj_cam = self._pixel_to_camera_coord(center[0], center[1], depth_m=1.80)
+                                objects["human_body"] = ExperimentObject(
+                                    name="human_body",
+                                    class_name="human_body",
+                                    bbox=b,
+                                    pos_rack=obj_cam
                                 )
                         else:
                             if name not in objects:
