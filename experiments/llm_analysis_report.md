@@ -1,6 +1,6 @@
 # Bharatiya Antariksh Station (BAS) - AI Mission Debrief
-**Session ID**: `SES-20260911_195201` | **Procedure**: Box Object Extraction & Return Procedure | **Analysis Model**: `Deterministic Expert Rule Engine`
-**Analysis Time**: 2026-09-11 19:53:48 (Inference: 10.32s)
+**Session ID**: `SES-20260911_201354` | **Procedure**: Box Object Extraction & Return Procedure | **Analysis Model**: `Deterministic Expert Rule Engine`
+**Analysis Time**: 2026-09-11 20:16:12 (Inference: 10.34s)
 
 ---
 
@@ -10,64 +10,167 @@
 - **Anomaly Count**: 0 safety gates tripped.
 
 ### 2. Action Timeline Breakdown
-- **Step 0 (IDLE)** [13.39s]: Action: `IDLE` | Requirement: `System initialized. Please open the box.`
-- **Step 0 (IDLE)** [3.69s]: Action: `APPROACHING RED BOX [ROM LIMIT]` | Requirement: `System initialized. Please open the box.`
-- **Step 0 (IDLE)** [0.1s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `System initialized. Please open the box.`
-- **Step 1 (BOX_OPENED)** [3.97s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [28.97s]: Action: `CLOSING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [0.1s]: Action: `CONTACTING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [1.94s]: Action: `APPROACH CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [6.17s]: Action: `CONTACTING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [5.34s]: Action: `APPROACH CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [27.16s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [0.1s]: Action: `CLOSING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 0 (IDLE)** [6.16s]: Action: `IDLE` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.1s]: Action: `APPROACH CONTAINER` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [2.27s]: Action: `APPROACH CONTAINER [ROM LIMIT]` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.85s]: Action: `CONTACTING CONTAINER [ROM LIMIT]` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.1s]: Action: `GRASPING COMPONENT BOX` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.1s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.1s]: Action: `GRASPING COMPONENT BOX [ROM LIMIT]` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [5.54s]: Action: `CONTACTING CONTAINER [ROM LIMIT]` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.1s]: Action: `CONTACTING CONTAINER` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [2.75s]: Action: `GRASPING COMPONENT BOX [ROM LIMIT]` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.1s]: Action: `GRASPING COMPONENT BOX` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.1s]: Action: `GRASPING COMPONENT BOX [ROM LIMIT]` | Requirement: `System initialized. Please open the box.`
+- **Step 0 (IDLE)** [0.1s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `System initialized. Please open the box.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
 - **Step 1 (BOX_OPENED)** [0.1s]: Action: `APPROACHING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [4.23s]: Action: `APPROACH CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [16.85s]: Action: `APPROACHING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [2.1s]: Action: `OPENING CONTAINER` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [0.1s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [4.99s]: Action: `CLOSING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [0.44s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [51.51s]: Action: `CLOSING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [0.1s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [13.74s]: Action: `CLOSING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [0.1s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `APPROACH CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
 - **Step 1 (BOX_OPENED)** [0.1s]: Action: `APPROACHING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [14.22s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [4.05s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
 - **Step 1 (BOX_OPENED)** [0.1s]: Action: `APPROACHING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [79.78s]: Action: `OPENING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 1 (BOX_OPENED)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
-- **Step 2 (OBJECT_EXTRACTED)** [42.27s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [4.54s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [3.62s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [4.47s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [5.93s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [67.84s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [26.15s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [3.61s]: Action: `PICKING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [28.25s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [14.06s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [22.77s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [3.37s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [30.65s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [20.57s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
-- **Step 3 (OBJECT_RETURNED)** [36.4s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object returned. Next step: Please close the box.`
-- **Step 3 (OBJECT_RETURNED)** [89.65s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 1 (BOX_OPENED)** [0.37s]: Action: `APPROACH CONTAINER` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [6.89s]: Action: `CONTACTING CONTAINER` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [2.48s]: Action: `CONTACTING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `CONTACTING CONTAINER` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [8.6s]: Action: `CONTACTING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `CONTACTING CONTAINER` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [3.56s]: Action: `CONTACTING CONTAINER [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.15s]: Action: `GRASPING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [2.84s]: Action: `GRASPING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `GRASPING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [6.12s]: Action: `APPROACHING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `CLOSING CONTAINER` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.66s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 2 (OBJECT_EXTRACTED)** [16.13s]: Action: `PICKING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [18.52s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object returned. Next step: Please close the box.`
 - **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object returned. Next step: Please close the box.`
-- **Step 4 (COMPLETE)** [0.0s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 4 (COMPLETE)** [0.68s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.34s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [1.17s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [14.83s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [13.07s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [1.73s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [6.04s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [3.29s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [9.59s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [19.44s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `PICKING RED BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `HOLDING RED BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [12.06s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [28.74s]: Action: `PICKING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [8.98s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [5.91s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING RED BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [2.89s]: Action: `HOLDING RED BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [1.03s]: Action: `PICKING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING RED BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [1.01s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 3 (OBJECT_RETURNED)** [1.41s]: Action: `IDLE` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 4 (COMPLETE)** [88.92s]: Action: `IDLE` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [34.24s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [20.75s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [21.64s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [12.33s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [25.99s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [4.39s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [3.2s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [1.66s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [6.8s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [7.32s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [17.06s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [9.16s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [1.21s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [4.86s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.98s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.25s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [7.52s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 1 (BOX_OPENED)** [2.51s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [4.74s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [146.44s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [52.08s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [17.8s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [22.36s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 2 (OBJECT_EXTRACTED)** [8.76s]: Action: `PICKING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [1.95s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [22.89s]: Action: `PICKING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [38.75s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [4.42s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [2.58s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [15.19s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 3 (OBJECT_RETURNED)** [10.46s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 3 (OBJECT_RETURNED)** [1.95s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 4 (COMPLETE)** [1.69s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [80.97s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [13.54s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [86.72s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 4 (COMPLETE)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box closed. Experiment successfully completed.`
+- **Step 1 (BOX_OPENED)** [36.41s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [24.6s]: Action: `CLOSING CONTAINER` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `HOLDING RED BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [3.78s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 1 (BOX_OPENED)** [2.44s]: Action: `PICKING COMPONENT BOX` | Requirement: `Box opened. Next step: Please take out the object.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [13.27s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [6.9s]: Action: `CLOSING CONTAINER` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING RED BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [47.95s]: Action: `HOLDING RED BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [248.01s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [18.73s]: Action: `PICKING COMPONENT BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object extracted. Next step: Please return the object into the box.`
+- **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 3 (OBJECT_RETURNED)** [150.2s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 3 (OBJECT_RETURNED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Object returned. Next step: Please close the box.`
+- **Step 4 (COMPLETE)** [0.0s]: Action: `IDLE` | Requirement: `Box closed. Experiment successfully completed.`
 
 ### 3. Safety & Compliance Analysis
 - **Lid Elevation Safety**: Met criteria for containment envelope access.

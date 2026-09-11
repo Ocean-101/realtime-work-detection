@@ -355,18 +355,23 @@ class PerceptionAgent:
                 comp.state = EntityState.DOCKED
             return
 
+        # Resolution scaling factors (calibrated against 1080p reference)
+        scale_y = float(h) / 1080.0
+        scale_x = float(w) / 1920.0
+        scale_area = (float(w) * float(h)) / (1920.0 * 1080.0)
+
         # Check for mid-air extracted cardboard payload contour (strictly above container flaps in torso zone)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         lower_brown = np.array([8, 25, 50])
         upper_brown = np.array([30, 235, 240])
         mask = cv2.inRange(hsv, lower_brown, upper_brown)
 
-        # Container flaps elevate up to (cont_ymin - 120). Component box when extracted is held in upper torso space (y < 500)
-        air_boundary_y = min(500, int(cont_ymin - 140))
+        # Container flaps elevate up to (cont_ymin - 120 * scale_y). Component box when extracted is held in upper torso space (y < 0.48 * h)
+        air_boundary_y = min(int(0.48 * h), int(cont_ymin - 130.0 * scale_y))
         mask_air = mask.copy()
         mask_air[max(0, air_boundary_y):, :] = 0
-        mask_air[:, :max(0, int(0.28 * w))] = 0
-        mask_air[:, min(w, int(0.72 * w)):] = 0
+        mask_air[:, :max(0, int(0.25 * w))] = 0
+        mask_air[:, min(w, int(0.75 * w)):] = 0
 
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
         mask_air = cv2.morphologyEx(mask_air, cv2.MORPH_OPEN, kernel)
@@ -374,16 +379,21 @@ class PerceptionAgent:
 
         found_payload = None
         max_area = 0
+        min_payload_area = max(500.0, 3800.0 * scale_area)
+        min_payload_h = max(30.0, 90.0 * scale_y)
+        wrist_tol_x = max(40.0, 130.0 * scale_x)
+        wrist_tol_y = max(40.0, 130.0 * scale_y)
+
         for c in contours:
             area = cv2.contourArea(c)
-            if area > 4000:
+            if area > min_payload_area:
                 x, y, bw, bh = cv2.boundingRect(c)
                 aspect = bh / float(max(1, bw))
-                if bh >= 95 and aspect >= 0.70:
+                if bh >= min_payload_h and aspect >= 0.65:
                     near_wrist = False
                     if wrists:
                         for wx, wy in wrists:
-                            if wy < air_boundary_y + 40 and (x - 120 <= wx <= x + bw + 120) and (y - 120 <= wy <= y + bh + 120):
+                            if wy < air_boundary_y + 50.0 * scale_y and (x - wrist_tol_x <= wx <= x + bw + wrist_tol_x) and (y - wrist_tol_y <= wy <= y + bh + wrist_tol_y):
                                 near_wrist = True
                                 break
                     else:
@@ -393,7 +403,8 @@ class PerceptionAgent:
                         max_area = area
                         found_payload = (x, y, bw, bh)
 
-        wrists_elevated = any(wy < min(500, int(cont_ymin - 140)) for wx, wy in wrists) if wrists else False
+        elev_thresh = min(int(0.48 * h), int(cont_ymin - 130.0 * scale_y))
+        wrists_elevated = any(wy < elev_thresh for wx, wy in wrists) if wrists else False
 
         if found_payload:
             self.payload_is_docked = False
@@ -418,13 +429,15 @@ class PerceptionAgent:
 
         # If payload was extracted, NOT yet docked into container, and wrists are still elevated high in torso workspace
         if self.payload_was_extracted and not self.payload_is_docked and wrists_elevated:
-            elevated_wrists = [wy for wx, wy in wrists if wy < min(500, int(cont_ymin - 140))]
+            elevated_wrists = [wy for wx, wy in wrists if wy < elev_thresh]
             if elevated_wrists:
-                avg_wx = float(np.mean([wx for wx, wy in wrists if wy < min(500, int(cont_ymin - 140))]))
+                avg_wx = float(np.mean([wx for wx, wy in wrists if wy < elev_thresh]))
                 avg_wy = float(np.mean(elevated_wrists))
+                box_rad_x = max(25.0, 70.0 * scale_x)
+                box_rad_y = max(25.0, 70.0 * scale_y)
                 item_bbox = BBox2D(
-                    xmin=max(0.0, avg_wx - 70.0), ymin=max(0.0, avg_wy - 70.0),
-                    xmax=min(float(w), avg_wx + 70.0), ymax=min(float(h), avg_wy + 70.0),
+                    xmin=max(0.0, avg_wx - box_rad_x), ymin=max(0.0, avg_wy - box_rad_y),
+                    xmax=min(float(w), avg_wx + box_rad_x), ymax=min(float(h), avg_wy + box_rad_y),
                     confidence=0.82, class_id=2, class_name="component_box"
                 )
                 objects["component_box"] = ExperimentObject(

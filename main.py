@@ -128,36 +128,40 @@ def run_orchestrator(
             source_type = "RECORDED_CLIP"
     elif str(source).isdigit():
         cam_idx = int(source)
-        for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
-            try:
-                c = cv2.VideoCapture(cam_idx, backend)
-                if c.isOpened():
-                    ret_test, _ = c.read()
-                    if ret_test:
-                        cap = c
-                        source = cam_idx
-                        source_type = "LIVE_WEBCAM"
-                        break
-                c.release()
-            except Exception:
-                pass
-
-        if cap is None and cam_idx != 0:
-            print(f"[Warning] Camera index #{cam_idx} not responding. Probing Camera #0...")
+        def open_hardware_camera(idx):
             for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
                 try:
-                    c = cv2.VideoCapture(0, backend)
+                    c = cv2.VideoCapture(idx, backend)
                     if c.isOpened():
-                        ret_test, _ = c.read()
-                        if ret_test:
-                            cap = c
-                            source = 0
-                            source_type = "LIVE_WEBCAM"
-                            print("[Orchestrator] Successfully engaged active Camera #0!")
-                            break
-                    c.release()
+                        c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                        c.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                        c.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                        ret, frame = c.read()
+                        if ret and frame is not None:
+                            return c
+                        c.release()
+                        c = cv2.VideoCapture(idx, backend)
+                        if c.isOpened():
+                            c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                            ret, frame = c.read()
+                            if ret and frame is not None:
+                                return c
+                        c.release()
                 except Exception:
                     pass
+            return None
+
+        cap = open_hardware_camera(cam_idx)
+        if cap is not None:
+            source = cam_idx
+            source_type = "LIVE_WEBCAM"
+        elif cam_idx != 0:
+            print(f"[Warning] Camera index #{cam_idx} not responding. Probing Camera #0...")
+            cap = open_hardware_camera(0)
+            if cap is not None:
+                source = 0
+                source_type = "LIVE_WEBCAM"
+                print("[Orchestrator] Successfully engaged active Camera #0!")
 
         if cap is None or not cap.isOpened():
             print(f"[Warning] Web Camera device #{source} could not be opened (disconnected or in use).")
@@ -170,10 +174,6 @@ def run_orchestrator(
             source = fallback_source
             source_type = "RECORDED_CLIP"
         else:
-            try:
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            except Exception:
-                pass
             cw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             ch = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             print(f"[Orchestrator] Ingesting from Web Camera device #{source} ({cw}x{ch}, buffer=1 real-time)...")
@@ -215,26 +215,11 @@ def run_orchestrator(
                 print(f"\n[Orchestrator] Video source switch requested from UI: {new_src_req}")
                 try:
                     if str(new_src_req) in ("0", "cam", "webcam"):
-                        new_cap = None
-                        for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
-                            try:
-                                c = cv2.VideoCapture(0, backend)
-                                if c.isOpened():
-                                    ret_t, _ = c.read()
-                                    if ret_t:
-                                        new_cap = c
-                                        break
-                                c.release()
-                            except Exception:
-                                pass
+                        new_cap = open_hardware_camera(0)
                         if new_cap is not None:
                             if cap is not None:
                                 cap.release()
                             cap = new_cap
-                            try:
-                                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                            except Exception:
-                                pass
                             source = 0
                             source_type = "LIVE_WEBCAM"
                             print("[Orchestrator] Switched active video source to LIVE WEBCAM #0.")
@@ -510,6 +495,8 @@ def run_orchestrator(
     except KeyboardInterrupt:
         print("\n[Orchestrator] Shutdown requested by user.")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"\n[Orchestrator] Pipeline terminated: {e}")
     finally:
         try:
