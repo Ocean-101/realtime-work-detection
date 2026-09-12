@@ -97,6 +97,10 @@ class StreamHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(len(data)))
             self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.end_headers()
+            self.wfile.write(data)
+            self.wfile.flush()
+
         elif self.path.startswith('/api/digital_twin') or self.path.startswith('/digital_twin'):
             scene_graph = getattr(self.server, 'latest_scene_graph', {})
             data_bytes = json.dumps(scene_graph).encode('utf-8')
@@ -137,8 +141,12 @@ class StreamHandler(BaseHTTPRequestHandler):
             if target:
                 if target in ('cam', 'webcam', '0', 'live'):
                     self.server.source_switch_requested = "0"
+                elif 'red' in str(target).lower() or 'yellow' in str(target).lower():
+                    self.server.source_switch_requested = "red_yellow.mp4"
+                elif os.path.exists(str(target)):
+                    self.server.source_switch_requested = str(target)
                 else:
-                    self.server.source_switch_requested = "clip1.mp4"
+                    self.server.source_switch_requested = "clip1.mp4" if os.path.exists("clip1.mp4") else "clip.mp4"
                 resp = json.dumps({"status": "ok", "requested_source": self.server.source_switch_requested}).encode('utf-8')
             else:
                 curr = getattr(self.server, 'current_source_type', 'LIVE_WEBCAM')

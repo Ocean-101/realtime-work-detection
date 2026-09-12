@@ -1,16 +1,16 @@
 {
-  "experiment_id": "BAS-EXP-26174",
-  "name": "Containment Box Extraction Procedure",
-  "description": "Astronaut extracts red box followed by yellow box from the primary containment rack",
-  "debounce_frames": 15,
+  "experiment_id": "BAS-EXP-RED-YELLOW",
+  "name": "Red & Yellow Box Dual-Object Procedure",
+  "description": "Astronaut opens container, extracts red box first, extracts yellow box, returns both yellow and red boxes into container, and closes the box.",
+  "debounce_frames": 6,
   "fps": 30.0,
   "contact_threshold_m": 0.10,
-  "lid_open_angle_deg": 45.0,
+  "lid_open_angle_deg": 25.0,
   "states": {
     "0": {
       "name": "IDLE",
       "instruction": "System initialized. Please open the primary container box.",
-      "expected_next_event": "LID_OPENED",
+      "expected_next_event": "CONTAINER_OPENED",
       "allowed_transitions": [1]
     },
     "1": {
@@ -25,7 +25,7 @@
       "instruction": "Red box extracted. Next step: Please extract the yellow box.",
       "expected_next_event": "YELLOW_BOX_EXTRACTED",
       "allowed_transitions": [3],
-      "forbidden_events": ["LID_CLOSED", "CONTAINER_ABANDONED"]
+      "forbidden_events": ["BOX_CLOSED", "CONTAINER_ABANDONED"]
     },
     "3": {
       "name": "YELLOW_EXTRACTED",
@@ -42,7 +42,7 @@
     },
     "5": {
       "name": "COMPLETE",
-      "instruction": "Container box closed. Experiment successfully completed.",
+      "instruction": "Container box closed. Dual-object procedure successfully completed.",
       "expected_next_event": null,
       "allowed_transitions": []
     }
@@ -50,19 +50,24 @@
   "anomalies": {
     "ERROR_SEQ": {
       "code": "ERR_01_OUT_OF_SEQUENCE",
-      "alert_tts": "Warning: Procedural error. Red box must be extracted before yellow box.",
-      "recovery_prompt": "Please return the yellow box into the container and proceed with extracting the red box."
+      "alert_tts": "Warning: Wrong move! Red box must be extracted before yellow box. Please return the yellow box.",
+      "recovery_prompt": "Please return the yellow box into the container and extract the red box first."
     },
     "ERROR_SKIP": {
       "code": "ERR_02_STEP_SKIPPED",
-      "alert_tts": "Warning: Step skipped. Please extract the yellow box to complete the procedure.",
-      "recovery_prompt": "Please reopen the container and extract the remaining yellow box."
+      "alert_tts": "Warning: Wrong move! Step skipped. Please complete the extraction sequence before closing.",
+      "recovery_prompt": "Please reopen the container and complete the required steps."
+    },
+    "ERROR_UNRETURNED_CLOSE": {
+      "code": "ERR_03_OBJECTS_NOT_RETURNED",
+      "alert_tts": "Warning: Wrong move! Yellow and red boxes must be returned into the container before closing.",
+      "recovery_prompt": "Reopen container and return both boxes inside before closing."
     },
     "STALL_TIMEOUT": {
-      "code": "WARN_03_INACTIVITY",
+      "code": "WARN_04_INACTIVITY",
       "timeout_seconds": 60,
-      "alert_tts": "Notice: Activity paused. Please consult mission checklist for active step.",
-      "recovery_prompt": "Resume current step when ready."
+      "alert_tts": "Notice: Inactivity detected. Please proceed with the current step.",
+      "recovery_prompt": "Resume the active procedure step."
     }
   }
 }

@@ -107,9 +107,14 @@ def run_pipeline_test():
     assert step == FSMStep.OBJECT_RETURNED, f"Expected OBJECT_RETURNED, got {step.name}"
     print(f"  [Pass] S3: OBJECT_RETURNED committed on event '{evt}'.")
 
-    # Transition to Step 4: Close Container (Lid angle < 20 deg)
+    # Transition to Step 4: Close Container (Lid angle < 20 deg, container_lid closed)
+    mock_objects_closed = {
+        "container_box": mock_objects_open["container_box"],
+        "component_box": mock_objects_returned["component_box"],
+        "human_body": mock_objects_open["human_body"]
+    }
     for f in range(validation.debounce_required):
-        step, deb, anom, _, evt = validation.evaluate_step(mock_objects_returned, lid_angle=5.0, active_hoi=[], current_frame=f + 30)
+        step, deb, anom, _, evt = validation.evaluate_step(mock_objects_closed, lid_angle=5.0, active_hoi=[], current_frame=f + 30)
     assert step == FSMStep.COMPLETE, f"Expected COMPLETE, got {step.name}"
     print(f"  [Pass] S4: COMPLETE (Box Closed & Sealed) committed on event '{evt}'.")
 
@@ -118,7 +123,7 @@ def run_pipeline_test():
     # Test Anomaly 1: Premature Close before extracting object
     val_anomaly = ValidationAgent(config_path="configs/box_return_fsm.json")
     val_anomaly.current_step = FSMStep.BOX_OPENED
-    for f in range(6):
+    for f in range(10):
         s, _, anom, msg, _ = val_anomaly.evaluate_step(mock_objects_open, lid_angle=5.0, active_hoi=[], current_frame=f)
     assert anom == AnomalyType.ERROR_SKIP, f"Expected ERROR_SKIP, got {anom}"
     assert not val_anomaly.is_step_correct, "Step correctness must be False on anomaly"
@@ -128,7 +133,7 @@ def run_pipeline_test():
     # Test Anomaly 2: Premature Close before returning object
     val_anomaly2 = ValidationAgent(config_path="configs/box_return_fsm.json")
     val_anomaly2.current_step = FSMStep.OBJECT_EXTRACTED
-    for f in range(6):
+    for f in range(10):
         s, _, anom, msg, _ = val_anomaly2.evaluate_step(mock_objects_picked, lid_angle=5.0, active_hoi=[], current_frame=f)
     assert anom == AnomalyType.ERROR_SEQ, f"Expected ERROR_SEQ, got {anom}"
     assert not val_anomaly2.is_step_correct, "Step correctness must be False on anomaly"

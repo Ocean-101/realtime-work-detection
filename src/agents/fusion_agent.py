@@ -40,6 +40,11 @@ class FusionAgent:
         self.elbow_min_deg = 0.0
         self.elbow_max_deg = 145.0
 
+    def reset(self):
+        """Resets UKF state and covariance matrices."""
+        self.state_mean = np.zeros(6, dtype=np.float32)
+        self.state_cov = np.eye(6, dtype=np.float32) * 0.05
+
     def transform_camera_to_rack(self, p_cam: Vector3D) -> Vector3D:
         """Applies homogeneous transformation: X_R = R * X_C + T."""
         v_cam = np.array([p_cam.x, p_cam.y, p_cam.z], dtype=np.float32)

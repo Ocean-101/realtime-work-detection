@@ -7,7 +7,7 @@ Offline Speech Synthesis (TTS), Structured JSONL Telemetry, and Live Video Overl
 import time
 import cv2
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 from src.core.types import (
     AstronautPose3D,
     ExperimentObject,
@@ -32,11 +32,15 @@ class MonitoringAgent:
         stream_port: int = 8080,
         output_video_path: Optional[str] = None,
         output_telemetry_path: Optional[str] = None,
-        realtime_feed_dir: str = "realtime_feed"
+        realtime_feed_dir: str = "realtime_feed",
+        output_csv_dir: str = "experiments"
     ):
         self.tts = OfflineTTS() if enable_tts else None
         self.telemetry = JSONLTelemetryLogger(output_telemetry_path)
-        self.csv_logger = RealtimeCSVTelemetryLogger(realtime_feed_dir=realtime_feed_dir)
+        self.csv_logger = RealtimeCSVTelemetryLogger(
+            output_dir=output_csv_dir,
+            realtime_feed_dir=realtime_feed_dir
+        )
         self.action_logger = ActionSessionLogger()
         self.video_pipeline = DualVideoPipeline(
             local_output_path=output_video_path,
@@ -49,6 +53,17 @@ class MonitoringAgent:
         """Resets action session logger and telemetry for new experiment run."""
         if self.action_logger:
             self.action_logger.reset()
+        if self.tts:
+            self.tts.reset()
+
+    def switch_output_dir(self, output_dir: str, realtime_feed_dir: str = "realtime_feed"):
+        """Switches output directories for isolated telemetry logging."""
+        if self.csv_logger:
+            self.csv_logger.close()
+        self.csv_logger = RealtimeCSVTelemetryLogger(
+            output_dir=output_dir,
+            realtime_feed_dir=realtime_feed_dir
+        )
 
     def check_reset_requested(self) -> bool:
         """Checks if web client requested an experiment reset."""
@@ -86,7 +101,7 @@ class MonitoringAgent:
         """
         # 1. Trigger Voice Alerts / Spoken Guidance
         if voice_alert and self.tts:
-            is_priority = anomaly != AnomalyType.NONE
+            is_priority = (anomaly != AnomalyType.NONE) or (not is_step_correct) or ("Wrong move" in voice_alert)
             self.tts.speak(voice_alert, priority=is_priority)
 
         # 2. Update Structured Action Session Logger (What I'm doing vs What I have to do)
@@ -158,7 +173,8 @@ class MonitoringAgent:
             llm_verification=llm_verification,
             source_type=source_type,
             is_step_correct=is_step_correct,
-            step_verdict=step_verdict
+            step_verdict=step_verdict,
+            experiment_id=experiment_id
         )
 
         # 6. Dispatch to Dual Video Pipeline (Local MP4 + RTSP Stream + Web API)
@@ -215,7 +231,8 @@ class MonitoringAgent:
         llm_verification: Optional[Dict[str, Any]] = None,
         source_type: str = "LIVE_WEBCAM",
         is_step_correct: bool = True,
-        step_verdict: str = "CORRECT (NOMINAL)"
+        step_verdict: str = "CORRECT (NOMINAL)",
+        experiment_id: str = "BAS-EXP-BOX-RETURN"
     ) -> np.ndarray:
         frame = raw_frame.copy()
         h, w, _ = frame.shape
@@ -250,7 +267,7 @@ class MonitoringAgent:
             if base in color_map:
                 return color_map[base]
             h_val = int((abs(hash(obj_name)) * 37) % 180)
-            hsv_pix = np.uint8([[[h_val, 220, 240]]])
+            hsv_pix = np.array([[[h_val, 220, 240]]], dtype=np.uint8)
             bgr = cv2.cvtColor(hsv_pix, cv2.COLOR_HSV2BGR)[0][0]
             return (int(bgr[0]), int(bgr[1]), int(bgr[2]))
 
@@ -416,13 +433,14 @@ class MonitoringAgent:
         elif pose.joints.get("wrist"):
             # Fallback for single wrist extrapolation
             wrist = pose.joints.get("wrist")
-            wx = int(self.video_pipeline.resolution[0]/2 + wrist.pos_camera.x * 400) if self.video_pipeline else w//2
-            wy = int(self.video_pipeline.resolution[1]/2 + wrist.pos_camera.y * 400) if self.video_pipeline else h//2
-            wx = max(15, min(w - 15, wx))
-            wy = max(banner_h + 15, min(h - bot_h - 15, wy))
+            if wrist:
+                wx = int(self.video_pipeline.resolution[0]/2 + wrist.pos_camera.x * 400) if self.video_pipeline else w//2
+                wy = int(self.video_pipeline.resolution[1]/2 + wrist.pos_camera.y * 400) if self.video_pipeline else h//2
+                wx = max(15, min(w - 15, wx))
+                wy = max(banner_h + 15, min(h - bot_h - 15, wy))
 
-            cv2.circle(frame, (wx, wy), max(5, int(8 * scale)), (0, 240, 255), -1)
-            cv2.circle(frame, (wx, wy), max(7, int(11 * scale)), (255, 255, 255), 1)
+                cv2.circle(frame, (wx, wy), max(5, int(8 * scale)), (0, 240, 255), -1)
+                cv2.circle(frame, (wx, wy), max(7, int(11 * scale)), (255, 255, 255), 1)
 
         # 3. Streamlined Minimalist HUD Overlay (Header & Footer)
         overlay = frame.copy()
@@ -431,17 +449,33 @@ class MonitoringAgent:
         cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
 
         # Separator lines
-        sep_col = (0, 230, 120) if current_step == FSMStep.COMPLETE else ((0, 60, 220) if anomaly != AnomalyType.NONE else (0, 180, 230))
+        is_dual_experiment = (
+            "RED" in str(experiment_id).upper()
+            or "26174" in str(experiment_id)
+            or "RED_YELLOW" in str(source_type).upper()
+        )
+        is_complete = (
+            current_step in (FSMStep.COMPLETE, FSMStep.BOX_CLOSED)
+            or int(current_step) >= (5 if is_dual_experiment else 4)
+        )
+        sep_col = (0, 230, 120) if is_complete else ((0, 60, 220) if anomaly != AnomalyType.NONE else (0, 180, 230))
         cv2.line(frame, (0, banner_h), (w, banner_h), sep_col, 1)
         cv2.line(frame, (0, h - bot_h), (w, h - bot_h), sep_col, 1)
 
         # Header Zone 1 (Left): Mission Identifier & Real-Time Source Indicator
-        src_tag = "LIVE #0" if source_type == "LIVE_WEBCAM" else "DEMO CLIP"
+        if source_type == "LIVE_WEBCAM":
+            src_tag = "LIVE #0"
+            title_col = (0, 240, 150)
+        elif "RED_YELLOW" in str(source_type):
+            src_tag = "RED-YELLOW"
+            title_col = (50, 220, 255)
+        else:
+            src_tag = "DEMO CLIP"
+            title_col = (255, 220, 100)
         title_txt = f"BAS HAR | {src_tag}"
         title_scale = max(0.38, scale * 0.90)
         (tw, th), _ = cv2.getTextSize(title_txt, cv2.FONT_HERSHEY_SIMPLEX, title_scale, thick)
         title_y = (banner_h + th) // 2
-        title_col = (0, 240, 150) if source_type == "LIVE_WEBCAM" else (255, 220, 100)
         cv2.putText(frame, title_txt, (14, title_y), cv2.FONT_HERSHEY_SIMPLEX, title_scale, title_col, thick, cv2.LINE_AA)
         left_bound = 14 + tw + 14
 
@@ -459,14 +493,25 @@ class MonitoringAgent:
         right_bound = status_x - 14
 
         # Header Zone 2 (Center): Active Procedure Step (Guaranteed No Overlap)
-        step_labels = {
-            FSMStep.IDLE: "S0: STANDBY",
-            FSMStep.BOX_OPENED: "S1: CONTAINER OPEN",
-            FSMStep.OBJECT_EXTRACTED: "S2: OBJECT EXTRACTED",
-            FSMStep.OBJECT_RETURNED: "S3: OBJECT RETURNED",
-            FSMStep.COMPLETE: "S4: MISSION COMPLETE"
-        }
-        active_step_txt = step_labels.get(current_step, current_step.name)
+        if is_dual_experiment:
+            step_labels = {
+                0: "S0: STANDBY",
+                1: "S1: CONTAINER OPEN",
+                2: "S2: RED EXTRACTED",
+                3: "S3: YELLOW EXTRACTED",
+                4: "S4: OBJECTS RETURNED",
+                5: "S5: BOX CLOSED"
+            }
+        else:
+            step_labels = {
+                0: "S0: STANDBY",
+                1: "S1: CONTAINER OPEN",
+                2: "S2: OBJECT EXTRACTED",
+                3: "S3: OBJECT RETURNED",
+                4: "S4: MISSION COMPLETE",
+                5: "S5: BOX CLOSED"
+            }
+        active_step_txt = step_labels.get(int(current_step), current_step.name)
         step_scale = max(0.36, scale * 0.86)
         (step_w, step_h), _ = cv2.getTextSize(active_step_txt, cv2.FONT_HERSHEY_SIMPLEX, step_scale, 1)
 
@@ -474,7 +519,7 @@ class MonitoringAgent:
         ideal_center_x = (w - step_w) // 2
         center_x = max(left_bound, min(right_bound - step_w, ideal_center_x))
         if center_x + step_w <= right_bound:
-            step_badge_col = (0, 230, 120) if current_step == FSMStep.COMPLETE else (0, 210, 255)
+            step_badge_col = (0, 230, 120) if is_complete else (0, 210, 255)
             pill_pad_x = 8
             pill_pad_y = 4
             px1 = center_x - pill_pad_x

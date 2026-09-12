@@ -42,7 +42,7 @@ def get_color(class_id: int):
 
 def run_realtime_detection(
     source="0",
-    model_path="yolov8n.pt",
+    model_path=None,
     conf_threshold=0.30,
     iou_threshold=0.45,
     save_dir="experiments/detections",
@@ -50,8 +50,12 @@ def run_realtime_detection(
     headless=False,
     experiment_only=True
 ):
+    if model_path is None:
+        model_path = "models/detector_offline.pt" if os.path.exists("models/detector_offline.pt") else "yolov8n.pt"
+
     print("=" * 75)
     print("   BHARATIYA ANTARIKSH STATION (BAS) - REAL-TIME EXPERIMENT DETECTOR")
+    print("   Architecture     : 100% Offline Standalone Neural Inference (Zero Cloud)")
     print(f"   Model Weights    : {model_path}")
     print(f"   Mode             : {'EXPERIMENT OBJECTS ONLY (Clutter Filtered)' if experiment_only else 'ALL OBJECTS'}")
     print(f"   Confidence Gate  : {int(conf_threshold * 100)}%")
@@ -59,12 +63,12 @@ def run_realtime_detection(
     print("=" * 75)
 
     if not os.path.exists(model_path):
-        print(f"[Model] Checkpoint '{model_path}' not found locally. Loading YOLOv8n...")
+        print(f"[Model] Checkpoint '{model_path}' not found locally. Loading yolov8n.pt...")
         model = YOLO("yolov8n.pt")
     else:
         model = YOLO(model_path)
 
-    print(f"[Model] Successfully initialized YOLOv8n with {len(model.names)} common object classes.")
+    print(f"[Model] Successfully initialized offline detector with {len(model.names)} classes: {list(model.names.values())}")
 
     # 1. Initialize Video Source
     cap = None
@@ -349,8 +353,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BAS Real-Time Experiment Object Detector")
     parser.add_argument("--source", default="auto",
                         help="Camera index ('0'), 'auto' (probes webcam #0 first), or path to video file (default: auto)")
-    parser.add_argument("--model", default="yolov8n.pt",
-                        help="YOLO model checkpoint (default: yolov8n.pt)")
+    default_weights = "models/detector_offline.pt" if os.path.exists("models/detector_offline.pt") else "yolov8n.pt"
+    parser.add_argument("--model", default=default_weights,
+                        help=f"YOLO model checkpoint (default: {default_weights})")
     parser.add_argument("--conf", type=float, default=0.30,
                         help="Confidence threshold [0.1 - 0.95] (default: 0.30)")
     parser.add_argument("--frames", type=int, default=None,

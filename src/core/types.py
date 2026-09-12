@@ -32,10 +32,14 @@ class FSMStep(int, Enum):
     OBJECT_EXTRACTED = 2
     OBJECT_RETURNED = 3
     COMPLETE = 4
+    BOX_CLOSED = 5
 
-    # Aliases
+    # Semantic Aliases for Dual-Box Procedure
     CONTAINER_OPEN = 1
     RED_EXTRACTED = 2
+    YELLOW_EXTRACTED = 3
+    OBJECTS_RETURNED = 4
+    DUAL_COMPLETE = 5
 
 
 class AnomalyType(str, Enum):

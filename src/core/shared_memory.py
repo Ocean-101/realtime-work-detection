@@ -71,6 +71,31 @@ class DigitalTwinBlackboard:
             "reason": "Initialized."
         }
 
+    def reset(self):
+        """Resets the shared memory blackboard to initial Step 0 state."""
+        with self._lock:
+            self.frame_id = 0
+            self.timestamp = time.time()
+            self.lid_angle_deg = 0.0
+            self.astronaut_pose = AstronautPose3D()
+            self.imu_telemetry.clear()
+            self.active_hoi.clear()
+            self.current_activity = "IDLE"
+            self.fsm_step = FSMStep.IDLE
+            self.debounce_counter = 0
+            self.anomaly_status = AnomalyType.NONE
+            self.anomaly_message = ""
+            self.active_instruction = "System initialized. Please open the primary container box."
+            self._voice_queue.clear()
+            self.telemetry_history.clear()
+            self.llm_verification = {
+                "verified_step": 0,
+                "step_name": "IDLE",
+                "confidence": 1.0,
+                "anomaly_verdict": "NOMINAL",
+                "reason": "Initialized."
+            }
+
     def set_mode(self, mode: str):
         with self._lock:
             self.operating_mode = mode

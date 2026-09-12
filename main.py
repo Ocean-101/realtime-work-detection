@@ -44,6 +44,7 @@ def run_orchestrator(
     stream_port=8080,
     max_frames=None,
     realtime_feed_dir="realtime_feed",
+    output_csv_dir=None,
     record_har_dataset=False
 ):
     print("=" * 70)
@@ -52,19 +53,38 @@ def run_orchestrator(
     print("   ISRO SIH Problem Statement #26174")
     print("=" * 70)
 
-    # Default to Box Object Extraction & Return FSM protocol
-    if config_path is None:
-        config_path = "configs/box_return_fsm.json"
+    # Detect if source or protocol is the Red-Yellow experiment
+    is_red_yellow = (
+        "red_yellow" in str(source).lower()
+        or (config_path is not None and "red_yellow" in str(config_path).lower())
+    )
+
+    if is_red_yellow:
+        if config_path is None or "box_return" in str(config_path):
+            config_path = "configs/red_yellow_fsm.json"
+        if realtime_feed_dir == "realtime_feed":
+            realtime_feed_dir = "realtime_feed_red_yellow"
+        if output_csv_dir is None:
+            output_csv_dir = "experiments_red_yellow"
+    else:
+        if config_path is None:
+            config_path = "configs/box_return_fsm.json"
+        if output_csv_dir is None:
+            output_csv_dir = "experiments"
 
     print(f"[Orchestrator] Active Procedure Protocol: {config_path}")
     print(f"[Orchestrator] Dedicated Real-Time Feed Directory: '{realtime_feed_dir}/'")
+    print(f"[Orchestrator] Dedicated Telemetry Output Directory: '{output_csv_dir}/'")
 
     # 1. Initialize Shared Memory Blackboard
     blackboard = DigitalTwinBlackboard()
 
     # 2. Instantiate Real-Time Asynchronous Local VLM Verifier (Ollama Qwen3-VL)
     print("[Orchestrator] Engaging Multimodal VLM Real-Time Verifier (qwen3-vl:2b-instruct @ http://localhost:11434)...")
-    llm_verifier = RealtimeLLMVerifier(model_name="qwen3-vl:2b-instruct")
+    llm_verifier = RealtimeLLMVerifier(
+        model_name="qwen3-vl:2b-instruct",
+        experiment_id="BAS-EXP-RED-YELLOW" if is_red_yellow else "BAS-EXP-BOX-RETURN"
+    )
 
     # 3. Instantiate the 8 Specialized Agents
     print("[Orchestrator] Initializing 8 Specialized Agents...")
@@ -79,8 +99,22 @@ def run_orchestrator(
         enable_tts=enable_tts,
         enable_streaming=enable_streaming,
         stream_port=stream_port,
-        realtime_feed_dir=realtime_feed_dir
+        realtime_feed_dir=realtime_feed_dir,
+        output_csv_dir=output_csv_dir
     )
+    llm_verifier.set_protocol(agent_validation.experiment_id)
+
+    def reset_pipeline():
+        """Cleanly resets all 8 agents, LLM verifier, and blackboard for a fresh run."""
+        agent_perception.reset()
+        agent_imu.reset()
+        agent_fusion.reset()
+        agent_har.reset()
+        agent_validation.reset()
+        agent_reasoning.reset()
+        agent_monitoring.reset()
+        llm_verifier.reset()
+        blackboard.reset()
 
     # Optional Desktop GUI
     desktop_gui = None
@@ -174,7 +208,7 @@ def run_orchestrator(
             from tools.generate_synthetic_data import generate_experiment_video
             generate_experiment_video(source, anomaly=False)
         cap = cv2.VideoCapture(source)
-        source_type = "RECORDED_CLIP"
+        source_type = "RED_YELLOW" if "red_yellow" in str(source).lower() else "RECORDED_CLIP"
         print(f"[Orchestrator] Ingesting from Video File: {source}...")
 
     if not cap.isOpened():
@@ -226,6 +260,16 @@ def run_orchestrator(
                             source = target_clip
                             source_type = "RECORDED_CLIP"
                             print(f"[Orchestrator] Switched active video source to RECORDED DEMO ({target_clip}).")
+                    elif os.path.exists(str(new_src_req)):
+                        target_clip = str(new_src_req)
+                        new_cap = cv2.VideoCapture(target_clip)
+                        if new_cap.isOpened():
+                            if cap is not None:
+                                cap.release()
+                            cap = new_cap
+                            source = target_clip
+                            source_type = "RED_YELLOW" if "red_yellow" in target_clip.lower() else "RECORDED_CLIP"
+                            print(f"[Orchestrator] Switched active video source to RECORDED CLIP ({target_clip}).")
                     agent_validation.reset()
                     agent_har.reset()
                     agent_monitoring.reset()
@@ -242,10 +286,38 @@ def run_orchestrator(
                 try:
                     agent_validation.load_protocol(new_exp_req)
                     agent_reasoning = ReasoningAgent(config_path=new_exp_req)
-                    agent_validation.reset()
-                    agent_har.reset()
-                    agent_monitoring.reset()
-                    agent_perception.last_lid_angle = 0.0
+                    if ("red_yellow" in new_exp_req or "experiment_fsm" in new_exp_req):
+                        is_red_yellow = True
+                        agent_monitoring.switch_output_dir(output_dir="experiments_red_yellow", realtime_feed_dir="realtime_feed_red_yellow")
+                        if os.path.exists("red_yellow.mp4") and source_type in ("RECORDED_CLIP", "RED_YELLOW"):
+                            target_clip = "red_yellow.mp4"
+                            new_cap = cv2.VideoCapture(target_clip)
+                            if new_cap.isOpened():
+                                if cap is not None:
+                                    cap.release()
+                                cap = new_cap
+                                source = target_clip
+                                source_type = "RED_YELLOW"
+                                print(f"[Orchestrator] Auto-switched video feed to {target_clip} for Red-Yellow procedure.")
+                    elif "box_return_fsm" in new_exp_req:
+                        is_red_yellow = False
+                        agent_monitoring.switch_output_dir(output_dir="experiments", realtime_feed_dir="realtime_feed")
+                        if source_type in ("RECORDED_CLIP", "RED_YELLOW"):
+                            target_clip = "clip1.mp4" if os.path.exists("clip1.mp4") else "clip.mp4"
+                            if os.path.exists(target_clip):
+                                new_cap = cv2.VideoCapture(target_clip)
+                                if new_cap.isOpened():
+                                    if cap is not None:
+                                        cap.release()
+                                    cap = new_cap
+                                    source = target_clip
+                                    source_type = "RECORDED_CLIP"
+                                    print(f"[Orchestrator] Auto-switched video feed to {target_clip} for Box Return procedure.")
+                    if "red_yellow" in new_exp_req:
+                        llm_verifier.set_protocol("BAS-EXP-RED-YELLOW")
+                    elif "box_return" in new_exp_req:
+                        llm_verifier.set_protocol("BAS-EXP-BOX-RETURN")
+                    reset_pipeline()
                     print(f"[Orchestrator] Active procedure switched to {agent_validation.experiment_id} ({new_exp_req}).")
                 except Exception as e:
                     print(f"[Orchestrator] Experiment switch error: {e}")
@@ -257,10 +329,7 @@ def run_orchestrator(
                 print("\n[Orchestrator] Reset requested from UI. Restarting real-time test from Step 0...")
                 if not str(source).isdigit():
                     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                agent_validation.reset()
-                agent_har.reset()
-                agent_monitoring.reset()
-                agent_perception.last_lid_angle = 0.0
+                reset_pipeline()
                 frame_id = 0
                 prev_frame_time = time.time()
 
@@ -272,7 +341,7 @@ def run_orchestrator(
                     continue
 
                 # If experiment reached COMPLETE, hold final completed state for 3s so user/web client sees completion
-                if agent_validation.current_step == FSMStep.COMPLETE:
+                if agent_validation.current_step in (FSMStep.COMPLETE, FSMStep.BOX_CLOSED) or int(agent_validation.current_step) >= (5 if is_red_yellow else 4):
                     print("\n[Orchestrator] Procedure COMPLETED successfully! Holding final state for 3 seconds...")
                     t_hold_end = time.time() + 3.0
                     while time.time() < t_hold_end:
@@ -294,10 +363,7 @@ def run_orchestrator(
                 # Loop video file for continuous exhibition/testing
                 print("\n[Orchestrator] Looping experiment from Step 0...")
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                agent_validation.reset()
-                agent_har.reset()
-                agent_monitoring.reset()
-                agent_perception.last_lid_angle = 0.0
+                reset_pipeline()
                 frame_id = 0
                 ret, raw_frame = cap.read()
                 if not ret:
@@ -371,7 +437,13 @@ def run_orchestrator(
 
             # AGENT 7: Reasoning & Guidance Agent (Next-step suggestions + Anomaly alerts)
             instruction, voice_alert = agent_reasoning.evaluate_guidance(
-                step, anomaly, trans_event, vlm_explanation=agent_validation.vlm_anomaly_explanation
+                current_step=step,
+                anomaly=anomaly,
+                transition_event=trans_event,
+                vlm_explanation=agent_validation.vlm_anomaly_explanation,
+                is_step_correct=agent_validation.is_step_correct,
+                step_verdict=agent_validation.step_verdict,
+                anomaly_message=anomaly_msg
             )
 
             # Record HAR Dataset Snapshot if enabled
@@ -443,10 +515,7 @@ def run_orchestrator(
                         print("\n[Orchestrator] Manual reset requested (R key pressed).")
                         if not str(source).isdigit():
                             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                        agent_validation.reset()
-                        agent_har.reset()
-                        agent_monitoring.reset()
-                        agent_perception.last_lid_angle = 0.0
+                        reset_pipeline()
                         frame_id = 0
                     elif key == ord('a'):
                         print("\n[Orchestrator] Triggering Offline LLM Procedural Audit (A key pressed)...")
@@ -570,6 +639,8 @@ if __name__ == "__main__":
                         help="Maximum frames to process (useful for automated testing)")
     parser.add_argument("--realtime-dir", type=str, default="realtime_feed",
                         help="Dedicated folder for real-time video feed CSV telemetry (default: realtime_feed)")
+    parser.add_argument("--output-dir", type=str, default=None,
+                        help="Dedicated folder for experiment CSV telemetry (default: auto-detected, 'experiments' or 'experiments_red_yellow')")
     parser.add_argument("--common", action="store_true",
                         help="Launch real-time Common Object Detection mode (COCO-80 classes: phone, bottle, cup, person, book, etc.)")
     parser.add_argument("--record-har-dataset", action="store_true",
@@ -594,6 +665,7 @@ if __name__ == "__main__":
             stream_port=args.port,
             max_frames=args.frames,
             realtime_feed_dir=args.realtime_dir,
+            output_csv_dir=args.output_dir,
             record_har_dataset=args.record_har_dataset
         )
     except KeyboardInterrupt:

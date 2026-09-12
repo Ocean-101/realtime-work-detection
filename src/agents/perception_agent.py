@@ -161,7 +161,7 @@ class PerceptionAgent:
                         )
                         center = ((bx1 + bx2) / 2.0, (by1 + by2) / 2.0)
 
-                        if cls_id == 3 or name == "operator_hand":
+                        if name in ("operator_hand", "hand", "astronaut_hand"):
                             if not hand_bbox:
                                 hand_bbox = b
                                 hand_center = center
@@ -171,7 +171,7 @@ class PerceptionAgent:
                                     bbox=b,
                                     pos_rack=self._pixel_to_camera_coord(center[0], center[1], depth_m=1.00)
                                 )
-                        elif cls_id == 4 or name in ("human_body", "person"):
+                        elif name in ("human_body", "person", "astronaut"):
                             if "human_body" not in objects:
                                 obj_cam = self._pixel_to_camera_coord(center[0], center[1], depth_m=1.80)
                                 objects["human_body"] = ExperimentObject(
@@ -246,19 +246,24 @@ class PerceptionAgent:
                     pos_rack=self._pixel_to_camera_coord(hand_center[0], hand_center[1], depth_m=1.00)
                 )
 
-        # 5. Fallback for ISRO Dual-Box benchmark objects (Red Box, Yellow Box) - strict geometric check
+        # 5. Detection for ISRO Dual-Box benchmark objects (Red Box, Yellow Box)
+        # Spatial filtering: restrict to astronaut workspace (exclude upper wall & right background)
         if "red_box" not in objects:
-            mask_red1 = cv2.inRange(hsv, np.array([0, 110, 80]), np.array([10, 255, 255]))
-            mask_red2 = cv2.inRange(hsv, np.array([170, 110, 80]), np.array([180, 255, 255]))
+            mask_red1 = cv2.inRange(hsv, np.array([0, 90, 70]), np.array([12, 255, 255]))
+            mask_red2 = cv2.inRange(hsv, np.array([165, 90, 70]), np.array([180, 255, 255]))
             mask_red = cv2.bitwise_or(mask_red1, mask_red2)
-            red_bbox, red_center = self._extract_largest_bbox(mask_red, "red_box", 2, min_area=1500)
+            mask_red[:int(0.28 * h), :] = 0   # Exclude upper ceiling / background
+            mask_red[:, int(0.62 * w):] = 0   # Exclude right wall
+            red_bbox, red_center = self._extract_largest_bbox(mask_red, "red_box", 2, min_area=1200)
             if red_bbox:
                 red_cam = self._pixel_to_camera_coord(red_center[0], red_center[1], depth_m=1.15)
                 objects["red_box"] = ExperimentObject(name="red_box", class_name="red_box", bbox=red_bbox, pos_rack=red_cam)
 
         if "yellow_box" not in objects:
-            mask_yellow = cv2.inRange(hsv, np.array([20, 110, 80]), np.array([32, 255, 255]))
-            yel_bbox, yel_center = self._extract_largest_bbox(mask_yellow, "yellow_box", 2, min_area=1500)
+            mask_yellow = cv2.inRange(hsv, np.array([18, 80, 70]), np.array([36, 255, 255]))
+            mask_yellow[:int(0.32 * h), :] = 0  # Exclude upper ceiling / background wall
+            mask_yellow[:, int(0.62 * w):] = 0   # Exclude right wall
+            yel_bbox, yel_center = self._extract_largest_bbox(mask_yellow, "yellow_box", 2, min_area=1000)
             if yel_bbox:
                 yel_cam = self._pixel_to_camera_coord(yel_center[0], yel_center[1], depth_m=1.15)
                 objects["yellow_box"] = ExperimentObject(name="yellow_box", class_name="yellow_box", bbox=yel_bbox, pos_rack=yel_cam)
@@ -326,6 +331,7 @@ class PerceptionAgent:
         if not cont_bbox:
             return
 
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         cont_ymin = cont_bbox.ymin
         cont_cx = (cont_bbox.xmin + cont_bbox.xmax) / 2.0
         cont_cy = (cont_bbox.ymin + cont_bbox.ymax) / 2.0
@@ -341,6 +347,59 @@ class PerceptionAgent:
         if not wrists and "operator_hand" in objects and objects["operator_hand"].bbox:
             hb = objects["operator_hand"].bbox
             wrists.append(((hb.xmin + hb.xmax) / 2.0, (hb.ymin + hb.ymax) / 2.0))
+
+        # Check and update red_box extraction state
+        red_obj = objects.get("red_box")
+        if red_obj and red_obj.bbox:
+            rcy = (red_obj.bbox.ymin + red_obj.bbox.ymax) / 2.0
+            rcx = (red_obj.bbox.xmin + red_obj.bbox.xmax) / 2.0
+            # Check external non-container pixels
+            m_red1 = cv2.inRange(hsv, np.array([0, 90, 70]), np.array([12, 255, 255]))
+            m_red2 = cv2.inRange(hsv, np.array([165, 90, 70]), np.array([180, 255, 255]))
+            m_red = cv2.bitwise_or(m_red1, m_red2)
+            m_red[:int(0.28 * h), :] = 0
+            m_red[:, int(0.62 * w):] = 0
+            m_ext_r = m_red.copy()
+            c_x1 = max(0, int(cont_bbox.xmin - 10))
+            c_x2 = min(w, int(cont_bbox.xmax + 10))
+            c_y1 = max(0, int(cont_ymin - 10))
+            c_y2 = min(h, int(cont_bbox.ymax + 10))
+            m_ext_r[c_y1:c_y2, c_x1:c_x2] = 0
+            r_ext_px = cv2.countNonZero(m_ext_r)
+
+            is_outside_x = (rcx < cont_bbox.xmin - 20) or (rcx > cont_bbox.xmax + 20)
+            is_in_air = (rcy < cont_ymin - 20)
+            if is_outside_x or is_in_air or r_ext_px > 1500:
+                red_obj.is_inside_container = False
+                red_obj.state = EntityState.EXTRACTED
+            else:
+                red_obj.is_inside_container = True
+                red_obj.state = EntityState.DOCKED
+
+        # Check and update yellow_box extraction state
+        yel_obj = objects.get("yellow_box")
+        if yel_obj and yel_obj.bbox:
+            ycy = (yel_obj.bbox.ymin + yel_obj.bbox.ymax) / 2.0
+            ycx = (yel_obj.bbox.xmin + yel_obj.bbox.xmax) / 2.0
+            m_yel = cv2.inRange(hsv, np.array([18, 80, 70]), np.array([36, 255, 255]))
+            m_yel[:int(0.32 * h), :] = 0
+            m_yel[:, int(0.62 * w):] = 0
+            m_ext_y = m_yel.copy()
+            c_x1 = max(0, int(cont_bbox.xmin - 10))
+            c_x2 = min(w, int(cont_bbox.xmax + 10))
+            c_y1 = max(0, int(cont_ymin - 10))
+            c_y2 = min(h, int(cont_bbox.ymax + 10))
+            m_ext_y[c_y1:c_y2, c_x1:c_x2] = 0
+            y_ext_px = cv2.countNonZero(m_ext_y)
+
+            is_outside_x = (ycx < cont_bbox.xmin - 20) or (ycx > cont_bbox.xmax + 20)
+            is_in_air = (ycy < cont_ymin - 20)
+            if is_outside_x or is_in_air or y_ext_px > 1200:
+                yel_obj.is_inside_container = False
+                yel_obj.state = EntityState.EXTRACTED
+            else:
+                yel_obj.is_inside_container = True
+                yel_obj.state = EntityState.DOCKED
 
         # Check if neural model detected component_box
         comp = objects.get("component_box")

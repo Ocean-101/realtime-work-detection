@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BAS Mission Control | Autonomous HAR & Digital Twin</title>
+  <title>BAS Mission Control | AI Sequence Validation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-dark: #0a0d14;
-      --panel-bg: rgba(16, 22, 34, 0.85);
+      --bg-dark: #080b11;
+      --panel-bg: rgba(15, 22, 36, 0.92);
       --panel-border: #1e293b;
       --accent-cyan: #00f0ff;
       --accent-blue: #0070f3;
       --accent-green: #00e676;
       --accent-orange: #ff9100;
       --accent-red: #ff1744;
-      --text-main: #f1f5f9;
+      --text-main: #f8fafc;
       --text-muted: #94a3b8;
     }
 
@@ -24,730 +24,518 @@
     body {
       background: var(--bg-dark);
       color: var(--text-main);
-      font-family: 'Inter', sans-serif;
-      overflow-x: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow-x: hidden;
     }
 
-    /* Header */
+    /* Top Navigation Bar */
     header {
-      background: rgba(10, 14, 24, 0.95);
-      border-bottom: 2px solid var(--accent-cyan);
+      background: rgba(11, 17, 28, 0.95);
+      border-bottom: 1px solid var(--panel-border);
       padding: 12px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(12px);
+      z-index: 100;
     }
+
     .brand {
       display: flex;
-      align-items: center;
-      gap: 16px;
+      align-items: baseline;
+      gap: 12px;
     }
     .brand h1 {
       font-family: 'Orbitron', sans-serif;
-      font-size: 1.25rem;
-      letter-spacing: 1.5px;
+      font-size: 1.15rem;
+      letter-spacing: 1.2px;
       color: #fff;
+      font-weight: 800;
     }
-    .brand .badge {
-      background: linear-gradient(135deg, #0070f3, #00f0ff);
-      color: #000;
-      font-weight: 700;
-      font-size: 0.75rem;
-      padding: 3px 8px;
-      border-radius: 4px;
-      letter-spacing: 1px;
+    .brand .subtitle {
+      font-size: 0.72rem;
+      color: var(--accent-cyan);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
     }
 
-    .mission-controls {
+    /* Central Controls: Feed Selector & Reset */
+    .header-controls {
       display: flex;
       align-items: center;
       gap: 12px;
     }
-    .control-group {
+
+    .pill-group {
       display: flex;
-      align-items: center;
-      gap: 5px;
-      background: rgba(15, 23, 42, 0.75);
-      padding: 4px 8px;
-      border-radius: 6px;
+      background: rgba(30, 41, 59, 0.5);
+      padding: 4px;
+      border-radius: 8px;
       border: 1px solid var(--panel-border);
+      gap: 4px;
     }
-    .group-label {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.65rem;
+    .pill-btn {
+      background: transparent;
+      border: none;
       color: var(--text-muted);
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      margin-right: 2px;
-    }
-    .ctrl-btn {
-      background: rgba(30, 41, 59, 0.7);
-      border: 1px solid var(--panel-border);
-      color: var(--text-main);
-      padding: 5px 10px;
-      border-radius: 5px;
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.68rem;
-      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
     }
-    .ctrl-btn:hover {
-      background: rgba(0, 240, 255, 0.15);
-      border-color: var(--accent-cyan);
-      color: var(--accent-cyan);
+    .pill-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
     }
-    .ctrl-btn.active-live {
-      background: linear-gradient(135deg, #00e676, #00b0ff);
-      border-color: var(--accent-green);
-      color: #000;
-      box-shadow: 0 0 10px rgba(0, 230, 118, 0.4);
-    }
-    .ctrl-btn.active-demo {
-      background: linear-gradient(135deg, #ff9100, #ffab00);
-      border-color: var(--accent-orange);
-      color: #000;
-      box-shadow: 0 0 10px rgba(255, 145, 0, 0.4);
-    }
-    .ctrl-btn.active-exp {
-      background: linear-gradient(135deg, #0070f3, #00f0ff);
-      border-color: var(--accent-cyan);
-      color: #000;
-      box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+    .pill-btn.active {
+      background: var(--accent-blue);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(0, 112, 243, 0.4);
     }
 
-    .step-verdict-pill {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.72rem;
-      font-weight: 800;
-      padding: 4px 10px;
-      border-radius: 6px;
-      letter-spacing: 0.5px;
+    .reset-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--panel-border);
+      color: #fff;
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+    .reset-btn:hover {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+    }
+
+    /* Header Right: Status Indicators */
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: rgba(30, 41, 59, 0.4);
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--panel-border);
+    }
+    .status-badge strong {
+      color: var(--accent-cyan);
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.1); }
+    }
+
+    /* Main Content Layout */
+    main {
+      flex: 1;
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: 2.2fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* Video Hero Section */
+    .video-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .video-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .video-header {
+      padding: 12px 18px;
+      background: rgba(20, 29, 46, 0.7);
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .video-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.8px;
+    }
+
+    .verdict-pill {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 5px 12px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
       transition: all 0.25s ease;
     }
-    .step-verdict-pill.nominal {
+    .verdict-pill.nominal {
       background: rgba(0, 230, 118, 0.15);
       border: 1px solid var(--accent-green);
       color: var(--accent-green);
       box-shadow: 0 0 10px rgba(0, 230, 118, 0.25);
     }
-    .step-verdict-pill.error {
+    .verdict-pill.error {
       background: rgba(255, 23, 68, 0.2);
       border: 1px solid var(--accent-red);
       color: var(--accent-red);
-      box-shadow: 0 0 12px rgba(255, 23, 68, 0.5);
-      animation: pulseAlert 1.0s infinite;
+      box-shadow: 0 0 14px rgba(255, 23, 68, 0.5);
+      animation: alertPulse 1.0s infinite;
     }
-    @keyframes pulseAlert {
+    @keyframes alertPulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.8; transform: scale(1.02); }
     }
 
-    .view-controls {
-      display: flex;
-      gap: 8px;
-    }
-    .view-btn {
-      background: rgba(30, 41, 59, 0.7);
-      border: 1px solid var(--panel-border);
-      color: var(--text-main);
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.72rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s ease;
+    .video-frame {
+      position: relative;
+      background: #000;
+      width: 100%;
+      height: 520px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: center;
+      overflow: hidden;
     }
-    .view-btn:hover {
-      background: rgba(0, 240, 255, 0.15);
-      border-color: var(--accent-cyan);
-      color: var(--accent-cyan);
-    }
-    .view-btn.active {
-      background: var(--accent-cyan);
-      border-color: var(--accent-cyan);
-      color: #000;
+    .video-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
     }
 
-    .telemetry-badges {
-      display: flex;
+    /* Action & Guidance Strip */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 16px;
-      font-family: 'Orbitron', monospace;
-      font-size: 0.85rem;
     }
-    .t-badge {
-      background: rgba(30, 41, 59, 0.6);
-      padding: 6px 12px;
-      border-radius: 6px;
+    .action-card {
+      background: var(--panel-bg);
       border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.25s ease;
     }
-    .t-val { color: var(--accent-cyan); font-weight: 700; }
+    .action-card.doing {
+      border-color: rgba(0, 240, 255, 0.3);
+      background: rgba(0, 240, 255, 0.05);
+    }
+    .action-card.todo {
+      border-color: rgba(0, 230, 118, 0.3);
+      background: rgba(0, 230, 118, 0.05);
+    }
+    .action-card.anomaly {
+      border-color: var(--accent-red) !important;
+      background: rgba(255, 23, 68, 0.12) !important;
+      box-shadow: 0 0 15px rgba(255, 23, 68, 0.25);
+    }
 
-    /* Main Grid */
-    main {
-      flex: 1;
-      padding: 16px 22px;
-      display: grid;
-      grid-template-columns: 2.1fr 1fr;
-      gap: 18px;
-      transition: all 0.3s ease;
+    .action-tag {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+    }
+    .action-card.doing .action-tag { color: var(--accent-cyan); }
+    .action-card.todo .action-tag { color: var(--accent-green); }
+    .action-card.anomaly .action-tag { color: var(--accent-red); }
+
+    .action-val {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.4;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
     }
 
-    /* Large Theater Mode */
-    body.theater-mode main {
-      grid-template-columns: 1fr;
-    }
-    body.theater-mode .sidebar-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+    /* Sidebar: Step Checklist */
+    .sidebar-section {
+      display: flex;
+      flex-direction: column;
       gap: 16px;
     }
 
-    .card {
+    .checklist-card {
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
       border-radius: 12px;
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     }
-    .video-card {
-      border: 1px solid rgba(0, 240, 255, 0.4);
-      box-shadow: 0 0 35px rgba(0, 240, 255, 0.15), 0 12px 40px rgba(0, 0, 0, 0.6);
-    }
-    .card-header {
-      padding: 12px 18px;
-      background: rgba(24, 32, 48, 0.6);
+    .checklist-header {
+      padding: 14px 18px;
+      background: rgba(20, 29, 46, 0.7);
       border-bottom: 1px solid var(--panel-border);
       font-family: 'Orbitron', sans-serif;
       font-size: 0.82rem;
-      letter-spacing: 1px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .restart-btn {
-      background: linear-gradient(135deg, #0070f3, #00f0ff);
+    .complete-badge {
+      background: var(--accent-green);
       color: #000;
-      border: none;
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.72rem;
       font-weight: 800;
-      cursor: pointer;
-      letter-spacing: 0.5px;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .restart-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 0 14px rgba(0, 240, 255, 0.6);
-    }
-
-    /* Video Feed */
-    .video-container {
-      position: relative;
-      background: #000;
-      width: 100%;
-      height: calc(100vh - 300px);
-      min-height: 440px;
-      max-height: 62vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
-    body.theater-mode .video-container {
-      height: calc(100vh - 350px);
-      min-height: 560px;
-      max-height: 78vh;
-    }
-    .video-container img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
-    }
-
-    /* Integrated Real-Time Step Header Pill */
-    .header-step-pill {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.78rem;
-      font-weight: 800;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(0, 240, 255, 0.12);
-      border: 1px solid var(--accent-cyan);
-      padding: 5px 12px;
-      border-radius: 6px;
-      letter-spacing: 0.5px;
-    }
-    .pulse-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: var(--accent-cyan);
-      box-shadow: 0 0 8px var(--accent-cyan);
-      animation: pulseGlow 1.2s infinite;
-    }
-    @keyframes pulseGlow {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.3); opacity: 0.7; }
-    }
-
-    .debounce-track {
-      width: 80px;
-      height: 7px;
-      background: rgba(255, 255, 255, 0.15);
+      font-size: 0.70rem;
+      padding: 3px 8px;
       border-radius: 4px;
-      overflow: hidden;
-    }
-    .debounce-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #0070f3, #00f0ff);
-      transition: width 0.08s ease;
-      box-shadow: 0 0 8px var(--accent-cyan);
+      letter-spacing: 0.5px;
     }
 
-    /* Step Checklist */
-    .checklist {
+    .checklist-body {
+      padding: 16px;
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 16px;
     }
+
     .step-item {
       display: flex;
       align-items: center;
       gap: 14px;
-      padding: 12px 16px;
+      padding: 12px 14px;
       border-radius: 8px;
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.02);
       border: 1px solid transparent;
-      transition: all 0.3s ease;
+      transition: all 0.25s ease;
     }
     .step-item.active {
-      background: rgba(0, 240, 255, 0.1);
+      background: rgba(0, 240, 255, 0.08);
       border-color: var(--accent-cyan);
-      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.18);
     }
     .step-item.completed {
-      background: rgba(0, 230, 118, 0.08);
-      border-color: rgba(0, 230, 118, 0.4);
+      background: rgba(0, 230, 118, 0.06);
+      border-color: rgba(0, 230, 118, 0.3);
     }
+
     .step-icon {
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 700;
-      font-size: 0.8rem;
-      background: rgba(255, 255, 255, 0.1);
-    }
-    .step-item.active .step-icon { background: var(--accent-cyan); color: #000; }
-    .step-item.completed .step-icon { background: var(--accent-green); color: #000; }
-    .step-text h4 { font-size: 0.95rem; }
-    .step-text p { font-size: 0.8rem; color: var(--text-muted); }
-
-    /* Telemetry Log */
-    .telemetry-log {
-      padding: 14px;
-      font-family: 'Consolas', monospace;
-      font-size: 0.8rem;
-      max-height: 220px;
-      overflow-y: auto;
-      background: #06080d;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .log-line {
-      line-height: 1.4;
-      color: #94a3b8;
-    }
-    .log-success { color: var(--accent-green); }
-    .log-alert { color: var(--accent-red); font-weight: 700; }
-
-    /* Footer Prompt */
-    footer {
-      background: rgba(10, 14, 24, 0.98);
-      border-top: 2px solid var(--accent-cyan);
-      padding: 16px 24px;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-    }
-    .prompt-box {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: rgba(0, 240, 255, 0.08);
-      border: 1px solid var(--accent-cyan);
-      border-radius: 8px;
-      padding: 10px 18px;
-    }
-    .prompt-box.anomaly {
-      background: rgba(255, 23, 68, 0.12);
-      border-color: var(--accent-red);
-    }
-    .prompt-label {
       font-family: 'Orbitron', sans-serif;
-      font-size: 0.8rem;
-      letter-spacing: 1px;
-      color: var(--accent-cyan);
       font-weight: 700;
+      font-size: 0.78rem;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      flex-shrink: 0;
     }
-    .prompt-box.anomaly .prompt-label { color: var(--accent-red); }
-    .prompt-content { font-size: 0.95rem; font-weight: 600; color: #fff; }
+    .step-item.active .step-icon {
+      background: var(--accent-cyan);
+      color: #000;
+      box-shadow: 0 0 8px var(--accent-cyan);
+    }
+    .step-item.completed .step-icon {
+      background: var(--accent-green);
+      color: #000;
+    }
 
-    /* Dual Action Banner (What I'm Doing & What I Have to Do) */
-    .action-banner-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-top: 14px;
-    }
-    .action-card {
-      padding: 14px 18px;
-      border-radius: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-      transition: all 0.3s ease;
-    }
-    .action-card.doing {
-      background: rgba(0, 240, 255, 0.08);
-      border: 1px solid var(--accent-cyan);
-    }
-    .action-card.todo {
-      background: rgba(0, 230, 118, 0.08);
-      border: 1px solid var(--accent-green);
-    }
-    .action-card.anomaly {
-      background: rgba(255, 23, 68, 0.12) !important;
-      border-color: var(--accent-red) !important;
-    }
-    .action-card-tag {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.72rem;
-      letter-spacing: 1px;
-      font-weight: 700;
-    }
-    .action-card.doing .action-card-tag { color: var(--accent-cyan); }
-    .action-card.todo .action-card-tag { color: var(--accent-green); }
-    .action-card.anomaly .action-card-tag { color: var(--accent-red); }
-    .action-card-text {
-      font-size: 0.98rem;
-      font-weight: 700;
+    .step-text h4 {
+      font-size: 0.88rem;
+      font-weight: 600;
       color: #fff;
-      line-height: 1.45;
-      word-break: break-word;
-      min-height: 44px;
-      display: flex;
-      align-items: center;
+      margin-bottom: 2px;
+    }
+    .step-text p {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.3;
     }
 
-    /* Offline LLM Audit Panel */
-    .llm-btn {
-      background: linear-gradient(135deg, #7928ca, #ff0080);
-      color: #fff;
-      border: none;
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.75rem;
-      font-weight: 700;
-      cursor: pointer;
-      letter-spacing: 0.5px;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .llm-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 0 16px rgba(255, 0, 128, 0.6);
-    }
-    .llm-audit-box {
-      padding: 16px;
-      font-size: 0.85rem;
-      line-height: 1.6;
-      max-height: 240px;
-      overflow-y: auto;
-      background: #06080e;
-      color: #cbd5e1;
-      font-family: 'Inter', sans-serif;
-      border-bottom: 1px solid var(--panel-border);
-    }
-    .llm-audit-box h3 {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.85rem;
-      color: var(--accent-cyan);
-      margin: 10px 0 4px 0;
-    }
-    .llm-audit-box ul { margin-left: 18px; margin-bottom: 8px; }
-    .llm-audit-box li { margin-bottom: 4px; }
-    .llm-placeholder {
-      color: #64748b;
-      font-style: italic;
-      text-align: center;
-      padding: 24px 10px;
+    @media (max-width: 1080px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      .video-frame {
+        height: 420px;
+      }
     }
   </style>
 </head>
 <body>
 
+  <!-- Clean Top Bar -->
   <header>
     <div class="brand">
       <h1>BHARATIYA ANTARIKSH STATION</h1>
-      <span class="badge">BAS-03 RESEARCH RACK</span>
+      <span class="subtitle">AI Sequence Validation</span>
     </div>
 
-    <!-- Live Source & Experiment Switchers -->
-    <div class="mission-controls">
-      <!-- Live Video Feed Switcher -->
-      <div class="control-group">
-        <span class="group-label">FEED:</span>
-        <button class="ctrl-btn active-live" id="btn-src-live" onclick="switchVideoSource('cam')" title="Switch to Real-Time Live Webcam #0">📷 LIVE WEBCAM</button>
-        <button class="ctrl-btn" id="btn-src-demo" onclick="switchVideoSource('clip')" title="Switch to Recorded Demo Clip">🎞️ DEMO CLIP</button>
+    <!-- Central Controls: Primary Experiments & Reset -->
+    <div class="header-controls">
+      <div class="pill-group">
+        <button class="pill-btn active" id="btn-ry" onclick="selectFeed('red_yellow')">🔴🟡 Red-Yellow Experiment</button>
+        <button class="pill-btn" id="btn-cam" onclick="selectFeed('cam')">📷 Live Webcam</button>
+        <button class="pill-btn" id="btn-box" onclick="selectFeed('box_return')">📦 Box Return</button>
       </div>
 
-      <!-- Experiment Protocol Switcher -->
-      <div class="control-group">
-        <span class="group-label">EXPERIMENT:</span>
-        <button class="ctrl-btn active-exp" id="btn-exp-box" onclick="switchExperiment('box_return')" title="Standard 4-Step Box Return Procedure">📦 BOX RETURN</button>
-        <button class="ctrl-btn" id="btn-exp-isro" onclick="switchExperiment('isro_dual')" title="ISRO PS #26174 Dual-Box Benchmark">🔴🟡 ISRO DUAL-BOX</button>
+      <button class="reset-btn" id="btn-restart" onclick="restartTestSequence()">🔄 Reset Test</button>
+    </div>
+
+    <!-- Status -->
+    <div class="header-right">
+      <div class="status-badge">
+        <span class="live-dot"></span>
+        <span id="t-src">RED-YELLOW</span>
       </div>
-    </div>
-
-    <!-- View & Screen Clarity Controls -->
-    <div class="view-controls">
-      <button class="view-btn active" id="btn-mode-standard" onclick="setDashboardMode('standard')">🖥️ CONSOLE</button>
-      <button class="view-btn" id="btn-mode-theater" onclick="setDashboardMode('theater')">📺 THEATER</button>
-      <button class="view-btn" onclick="toggleFullscreen()">⛶ FULLSCREEN</button>
-    </div>
-
-    <!-- Real-Time Telemetry Badges -->
-    <div class="telemetry-badges">
-      <div class="t-badge">SRC: <span class="t-val" id="t-src" style="color: var(--accent-green);">LIVE #0</span></div>
-      <div class="t-badge">FPS: <span class="t-val" id="t-fps">30.0</span></div>
-      <div class="t-badge">DEBOUNCE: <span class="t-val" id="t-deb">0/6</span></div>
-      <div class="t-badge">LID: <span class="t-val" id="t-lid">0° [CLOSED]</span></div>
+      <div class="status-badge">
+        <strong id="t-fps">30.0</strong>&nbsp;FPS
+      </div>
     </div>
   </header>
 
-  <main id="main-dashboard">
-    <!-- Left Column: Payload Video Stream & Dual Action Cards -->
-    <div style="display: flex; flex-direction: column; gap: 14px;">
-      <div class="card video-card">
-        <div class="card-header">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span id="feed-title-text" style="font-weight: 700; letter-spacing: 0.5px;">LIVE PAYLOAD FEED</span>
-            <div id="step-verdict-badge" class="step-verdict-pill nominal">✓ STEP: CORRECT (NOMINAL)</div>
-          </div>
-
-          <!-- Live Step Pill in Dedicated Header Slot -->
-          <div class="header-step-pill" id="overlay-step-name">
-            <div class="pulse-dot"></div>
-            <span id="step-name-text">STEP 0: INITIALIZE WORKSPACE</span>
-          </div>
-
-          <!-- Debounce Gate Monitor & Controls -->
-          <div style="display: flex; align-items: center; gap: 14px;">
-            <div style="display: flex; align-items: center; gap: 8px; font-family: 'Orbitron', monospace; font-size: 0.70rem; font-weight: 700;">
-              <span style="color: var(--text-muted);">DEBOUNCE:</span>
-              <span id="overlay-deb-text" style="color: var(--accent-cyan);">0/6</span>
-              <div class="debounce-track">
-                <div class="debounce-fill" id="overlay-deb-bar"></div>
-              </div>
-            </div>
-            <button id="btn-restart" class="restart-btn" onclick="restartTestSequence()">🔄 TEST AGAIN</button>
-          </div>
+  <!-- Main Hero Grid -->
+  <main>
+    <!-- Left Column: Video Hero & Action Guidance -->
+    <section class="video-section">
+      <div class="video-card">
+        <div class="video-header">
+          <div class="video-title" id="feed-title-text">ISRO RED-YELLOW EXPERIMENT FEED</div>
+          <div id="step-verdict-badge" class="verdict-pill nominal">✓ STEP: CORRECT (NOMINAL)</div>
         </div>
 
-        <div class="video-container" id="stream-box">
-          <img id="live-stream" src="/stream" alt="Live Camera Feed Overlay">
+        <div class="video-frame" id="stream-box">
+          <img id="live-stream" src="/stream" alt="Real-Time Detection Stream">
         </div>
       </div>
 
-      <!-- Real-Time Dual Action Detection Card -->
-      <div class="action-banner-grid">
+      <!-- Action & Guidance Strip -->
+      <div class="action-grid">
         <div class="action-card doing" id="card-doing">
-          <div class="action-card-tag">WHAT I AM DOING (REAL-TIME ACTION)</div>
-          <div class="action-card-text" id="action-doing">OBSERVING WORKSPACE (IDLE)</div>
+          <div class="action-tag">CURRENT DETECTED ACTION</div>
+          <div class="action-val" id="action-doing">OBSERVING WORKSPACE (IDLE)</div>
         </div>
         <div class="action-card todo" id="card-todo">
-          <div class="action-card-tag" id="tag-todo">WHAT I HAVE TO DO (NEXT STEP)</div>
-          <div class="action-card-text" id="action-todo">System initialized. Please open the box.</div>
+          <div class="action-tag" id="tag-todo">NEXT REQUIRED ACTION</div>
+          <div class="action-val" id="action-todo">System ready. Open the primary container box.</div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Right Column: Step Checklist, Telemetry, & Offline LLM Audit -->
-    <div class="sidebar-container" style="display: flex; flex-direction: column; gap: 16px;">
-      <!-- Checklist Card -->
-      <div class="card">
-        <div class="card-header">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span id="checklist-protocol-title">PROCEDURAL STEP CHECKLIST</span>
-            <span id="fsm-status-badge" style="display: none; padding: 3px 10px; border-radius: 4px; font-size: 0.72rem; font-weight: 800; background: var(--accent-green); color: #000; letter-spacing: 0.5px;">✓ ALL STEPS COMPLETE</span>
-          </div>
+    <!-- Right Column: Step Checklist -->
+    <aside class="sidebar-section">
+      <div class="checklist-card">
+        <div class="checklist-header">
+          <span id="checklist-protocol-title">PROCEDURAL STEP CHECKLIST</span>
+          <span id="fsm-status-badge" class="complete-badge" style="display: none;">✓ COMPLETE</span>
         </div>
-        <div class="checklist" id="step-checklist">
-          <div class="step-item active" id="step-0">
-            <div class="step-icon">0</div>
-            <div class="step-text">
-              <h4>Step 0: Initialize Workspace</h4>
-              <p>System ready. Awaiting box opening</p>
-            </div>
-          </div>
-          <div class="step-item" id="step-1">
-            <div class="step-icon">1</div>
-            <div class="step-text">
-              <h4>Step 1: Open Box</h4>
-              <p>Lift and fold open the box lid or flaps</p>
-            </div>
-          </div>
-          <div class="step-item" id="step-2">
-            <div class="step-icon">2</div>
-            <div class="step-text">
-              <h4>Step 2: Take Out Object</h4>
-              <p>Grasp and extract object outside the box</p>
-            </div>
-          </div>
-          <div class="step-item" id="step-3">
-            <div class="step-icon">3</div>
-            <div class="step-text">
-              <h4>Step 3: Return Object</h4>
-              <p>Place the object back into the container</p>
-            </div>
-          </div>
-          <div class="step-item" id="step-4">
-            <div class="step-icon">4</div>
-            <div class="step-text">
-              <h4>Step 4: Close Box & Complete</h4>
-              <p>Fold box flaps shut to finish procedure</p>
-            </div>
-          </div>
+        <div class="checklist-body" id="step-checklist">
+          <!-- Populated by JavaScript based on active protocol -->
         </div>
       </div>
-
-      <!-- Offline LLM Mission Audit Card -->
-      <div class="card">
-        <div class="card-header">
-          <span>🤖 OFFLINE LOCAL LLM MISSION AUDIT (QWEN-2.5 1.5B)</span>
-          <button id="btn-llm" class="llm-btn" onclick="triggerLLMAudit()">🤖 RUN LLM AUDIT</button>
-        </div>
-        <div class="llm-audit-box" id="llm-audit-box">
-          <div class="llm-placeholder">Awaiting experiment completion or click 'RUN LLM AUDIT' to analyze recorded actions from <code>session_actions.json</code>...</div>
-        </div>
-        <div style="padding: 8px 14px; background: rgba(0,0,0,0.4); font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; border-top: 1px solid var(--panel-border);">
-          <span>JSON LOG: <a href="/api/session_actions" target="_blank" style="color: var(--accent-cyan); text-decoration: none;">experiments/session_actions.json</a></span>
-          <span id="session-stats">Tracking live actions</span>
-        </div>
-      </div>
-
-      <!-- Telemetry Card -->
-      <div class="card" style="flex: 1;">
-        <div class="card-header">STRUCTURED JSON LINES TELEMETRY (3,000,000:1 COMPRESSION)</div>
-        <div class="telemetry-log" id="telemetry-log">
-          <div class="log-line">[SYSTEM] Stream active on port 8080. Zero-Velocity Update (ZUPT) engaged.</div>
-          <div class="log-line log-success">{"frame": 1, "state": "IDLE", "status": "NOMINAL", "event": "INIT"}</div>
-        </div>
-      </div>
-    </div>
+    </aside>
   </main>
 
-  <!-- Persistent Audio Prompt & Anomaly Bar -->
-  <footer>
-    <div class="prompt-box" id="prompt-box">
-      <span class="prompt-label" id="prompt-label">NEXT STEP:</span>
-      <span class="prompt-content" id="prompt-text">System initialized. Please open the primary container box.</span>
-    </div>
-  </footer>
-
-  <!-- Dynamic Real-Time Client Controller -->
   <script>
     const streamImg = document.getElementById('live-stream');
     const tFps = document.getElementById('t-fps');
-    const tDeb = document.getElementById('t-deb');
-    const tLid = document.getElementById('t-lid');
-    const promptText = document.getElementById('prompt-text');
-    const promptLabel = document.getElementById('prompt-label');
-    const promptBox = document.getElementById('prompt-box');
-    const logBox = document.getElementById('telemetry-log');
-    const overlayStepName = document.getElementById('overlay-step-name');
-    const overlayDebText = document.getElementById('overlay-deb-text');
-    const overlayDebBar = document.getElementById('overlay-deb-bar');
+    const tSrc = document.getElementById('t-src');
+    const feedTitle = document.getElementById('feed-title-text');
+    const verdictBadge = document.getElementById('step-verdict-badge');
+    const elDoing = document.getElementById('action-doing');
+    const elTodo = document.getElementById('action-todo');
+    const cardTodo = document.getElementById('card-todo');
+    const tagTodo = document.getElementById('tag-todo');
+    const statusBadge = document.getElementById('fsm-status-badge');
+    const checklistTitle = document.getElementById('checklist-protocol-title');
+    const checklistBody = document.getElementById('step-checklist');
 
-    let streamActive = true;
     let fallbackTimer = null;
-    let lastEventLogged = null;
-    let lastAnomalyLogged = null;
-    let previousStep = null;
+    let activeExperimentId = "BAS-EXP-26174";
 
-    // Supported Procedural Protocols
     const PROTOCOLS = {
-      "BAS-EXP-BOX-RETURN": {
-        name: "BOX RETURN PROCEDURE CHECKLIST",
+      "BAS-EXP-26174": {
+        name: "ISRO RED-YELLOW PROCEDURE (PS #26174)",
         steps: [
-          { id: 0, title: "Step 0: Initialize Workspace", desc: "System ready. Awaiting box opening" },
-          { id: 1, title: "Step 1: Open Box", desc: "Lift and fold open the box lid or flaps" },
-          { id: 2, title: "Step 2: Take Out Object", desc: "Grasp and extract object outside the box" },
-          { id: 3, title: "Step 3: Return Object", desc: "Place the object back into the container" },
-          { id: 4, title: "Step 4: Close Box & Complete", desc: "Fold box flaps shut to finish procedure" }
+          { id: 0, title: "Step 0: Standby / Box Closed", desc: "System ready. Primary container box closed" },
+          { id: 1, title: "Step 1: Open Container Box", desc: "Lift lid to open container" },
+          { id: 2, title: "Step 2: Extract Red Box First", desc: "Extract Red box payload into work area" },
+          { id: 3, title: "Step 3: Extract Yellow Box Second", desc: "Extract Yellow box payload into work area" },
+          { id: 4, title: "Step 4: Return Yellow & Red Boxes", desc: "Yellow and red boxes returned into container" },
+          { id: 5, title: "Step 5: Close Box & Complete", desc: "Container box closed, procedure verified complete" }
         ]
       },
-      "BAS-EXP-26174": {
-        name: "ISRO PS #26174 BENCHMARK CHECKLIST",
+      "BAS-EXP-RED-YELLOW": {
+        name: "ISRO RED-YELLOW PROCEDURE (PS #26174)",
         steps: [
-          { id: 0, title: "Step 0: Initialize Rack", desc: "Ready. Red Box must be extracted BEFORE Yellow Box" },
-          { id: 1, title: "Step 1: Open Container Box", desc: "Lift container lid (angle > 28°)" },
-          { id: 2, title: "Step 2: Extract Red Box First", desc: "Extract Red payload. Yellow before Red flags sequence error!" },
-          { id: 3, title: "Step 3: Extract Yellow Box", desc: "Extract Yellow payload after Red is secured" },
-          { id: 4, title: "Step 4: Benchmark Complete", desc: "Both payloads extracted in certified sequence" }
+          { id: 0, title: "Step 0: Standby / Box Closed", desc: "System ready. Primary container box closed" },
+          { id: 1, title: "Step 1: Open Container Box", desc: "Lift lid to open container" },
+          { id: 2, title: "Step 2: Extract Red Box First", desc: "Extract Red box payload into work area" },
+          { id: 3, title: "Step 3: Extract Yellow Box Second", desc: "Extract Yellow box payload into work area" },
+          { id: 4, title: "Step 4: Return Yellow & Red Boxes", desc: "Yellow and red boxes returned into container" },
+          { id: 5, title: "Step 5: Close Box & Complete", desc: "Container box closed, procedure verified complete" }
+        ]
+      },
+      "BAS-EXP-BOX-RETURN": {
+        name: "BOX RETURN PROCEDURE",
+        steps: [
+          { id: 0, title: "Step 0: Initialize Workspace", desc: "System ready. Await box opening" },
+          { id: 1, title: "Step 1: Open Box", desc: "Lift and fold open box flaps" },
+          { id: 2, title: "Step 2: Take Out Object", desc: "Grasp and extract object from box" },
+          { id: 3, title: "Step 3: Return Object", desc: "Place object back into container" },
+          { id: 4, title: "Step 4: Close Box & Complete", desc: "Close box flaps to finish procedure" }
         ]
       }
     };
-    let activeExperimentId = "BAS-EXP-BOX-RETURN";
 
-    function renderChecklistForProtocol(expId) {
-      if (!PROTOCOLS[expId]) expId = "BAS-EXP-BOX-RETURN";
+    function renderChecklist(expId) {
+      if (!PROTOCOLS[expId]) expId = "BAS-EXP-26174";
       activeExperimentId = expId;
       const proto = PROTOCOLS[expId];
-      const titleEl = document.getElementById('checklist-protocol-title');
-      if (titleEl) titleEl.textContent = proto.name;
+      if (checklistTitle) checklistTitle.textContent = proto.name;
+      if (!checklistBody) return;
 
-      const container = document.getElementById('step-checklist');
-      if (!container) return;
-
-      container.innerHTML = proto.steps.map(s => `
+      checklistBody.innerHTML = proto.steps.map(s => `
         <div class="step-item ${s.id === 0 ? 'active' : ''}" id="step-${s.id}">
           <div class="step-icon">${s.id}</div>
           <div class="step-text">
@@ -756,168 +544,89 @@
           </div>
         </div>
       `).join('');
-
-      // Update button highlights
-      const btnBox = document.getElementById('btn-exp-box');
-      const btnIsro = document.getElementById('btn-exp-isro');
-      if (expId === 'BAS-EXP-26174') {
-        if (btnIsro) btnIsro.className = 'ctrl-btn active-exp';
-        if (btnBox) btnBox.className = 'ctrl-btn';
-      } else {
-        if (btnBox) btnBox.className = 'ctrl-btn active-exp';
-        if (btnIsro) btnIsro.className = 'ctrl-btn';
-      }
     }
 
-    // Video Source Switcher (Live Webcam vs Recorded Demo)
-    async function switchVideoSource(target) {
+    renderChecklist("BAS-EXP-26174");
+
+    // Unified Feed Selector
+    async function selectFeed(type) {
+      const btnRy = document.getElementById('btn-ry');
+      const btnCam = document.getElementById('btn-cam');
+      const btnBox = document.getElementById('btn-box');
+
+      if (btnRy) btnRy.className = (type === 'red_yellow') ? 'pill-btn active' : 'pill-btn';
+      if (btnCam) btnCam.className = (type === 'cam') ? 'pill-btn active' : 'pill-btn';
+      if (btnBox) btnBox.className = (type === 'box_return') ? 'pill-btn active' : 'pill-btn';
+
       try {
-        const resp = await fetch(`/api/source?set=${target}&t=` + Date.now());
-        if (resp.ok) {
-          const d = await resp.json();
-          const isCam = (d.requested_source === "0");
-          updateSourceUI(isCam ? "LIVE_WEBCAM" : "RECORDED_CLIP");
-          restartTestSequence();
+        if (type === 'red_yellow') {
+          await fetch('/api/experiment?set=isro_dual&t=' + Date.now());
+          await fetch('/api/source?set=red_yellow.mp4&t=' + Date.now());
+          renderChecklist("BAS-EXP-26174");
+        } else if (type === 'cam') {
+          await fetch('/api/source?set=cam&t=' + Date.now());
+        } else if (type === 'box_return') {
+          await fetch('/api/experiment?set=box_return&t=' + Date.now());
+          await fetch('/api/source?set=clip1.mp4&t=' + Date.now());
+          renderChecklist("BAS-EXP-BOX-RETURN");
         }
+        restartTestSequence();
       } catch (err) {
-        console.error("Failed to switch source:", err);
+        console.error("Failed to select feed:", err);
       }
     }
 
-    function updateSourceUI(sourceType) {
-      const isLive = sourceType === "LIVE_WEBCAM";
-      const btnLive = document.getElementById('btn-src-live');
-      const btnDemo = document.getElementById('btn-src-demo');
-      const tSrc = document.getElementById('t-src');
-      const feedTitle = document.getElementById('feed-title-text');
-
-      if (btnLive && btnDemo) {
-        if (isLive) {
-          btnLive.className = 'ctrl-btn active-live';
-          btnDemo.className = 'ctrl-btn';
-        } else {
-          btnDemo.className = 'ctrl-btn active-demo';
-          btnLive.className = 'ctrl-btn';
-        }
-      }
-      if (tSrc) {
-        tSrc.textContent = isLive ? "LIVE #0" : "DEMO CLIP";
-        tSrc.style.color = isLive ? "var(--accent-green)" : "var(--accent-orange)";
-      }
-      if (feedTitle) {
-        feedTitle.textContent = isLive ? "LIVE REAL-TIME PAYLOAD FEED" : "RECORDED DEMO CLIP FEED";
-      }
-    }
-
-    // Experiment Protocol Switcher (Box Return vs ISRO PS #26174)
-    async function switchExperiment(target) {
-      try {
-        const resp = await fetch(`/api/experiment?set=${target}&t=` + Date.now());
-        if (resp.ok) {
-          const d = await resp.json();
-          const expId = (d.requested_protocol && d.requested_protocol.includes('experiment_fsm')) ? 'BAS-EXP-26174' : 'BAS-EXP-BOX-RETURN';
-          renderChecklistForProtocol(expId);
-          restartTestSequence();
-        }
-      } catch (err) {
-        console.error("Failed to switch experiment:", err);
-      }
-    }
-
-    // View Switcher (Console View vs Large Screen Theater Mode)
-    function setDashboardMode(mode) {
-      const body = document.body;
-      const btnStd = document.getElementById('btn-mode-standard');
-      const btnThe = document.getElementById('btn-mode-theater');
-
-      if (mode === 'theater') {
-        body.classList.add('theater-mode');
-        btnThe.classList.add('active');
-        btnStd.classList.remove('active');
-      } else {
-        body.classList.remove('theater-mode');
-        btnStd.classList.add('active');
-        btnThe.classList.remove('active');
-      }
-    }
-
-    function toggleFullscreen() {
-      const elem = document.getElementById('stream-box');
-      if (!document.fullscreenElement) {
-        elem.requestFullscreen().catch(err => alert(`Fullscreen error: ${err.message}`));
-      } else {
-        document.exitFullscreen();
-      }
-    }
-
+    // Reset Test Sequence
     async function restartTestSequence() {
       const btn = document.getElementById('btn-restart');
-      if (btn) btn.textContent = '⏳ RESETTING...';
+      if (btn) btn.textContent = '⏳ Resetting...';
       try {
-        const resp = await fetch('/reset?t=' + Date.now());
-        if (resp.ok) {
-          logBox.innerHTML = '<div class="log-line log-success">[SYSTEM] Test sequence reset to Step 0 (IDLE). Ready for next run...</div>';
-          lastEventLogged = null;
-          lastAnomalyLogged = null;
-          previousStep = 0;
-          llmAuditTriggered = false;
-          if (auditPollTimer) {
-            clearTimeout(auditPollTimer);
-            auditPollTimer = null;
-          }
-          isAuditing = false;
-
-          const statusBadge = document.getElementById('fsm-status-badge');
-          if (statusBadge) statusBadge.style.display = 'none';
-
-          for (let i = 0; i <= 4; i++) {
-            const item = document.getElementById(`step-${i}`);
-            if (!item) continue;
-            const icon = item.querySelector('.step-icon');
-            if (i === 0) {
-              item.className = 'step-item active';
-              if (icon) icon.textContent = '0';
-            } else {
-              item.className = 'step-item';
-              if (icon) icon.textContent = i;
-            }
+        await fetch('/reset?t=' + Date.now());
+        if (statusBadge) statusBadge.style.display = 'none';
+        const maxSteps = (PROTOCOLS[activeExperimentId] && PROTOCOLS[activeExperimentId].steps) ? PROTOCOLS[activeExperimentId].steps.length - 1 : 5;
+        for (let i = 0; i <= maxSteps; i++) {
+          const item = document.getElementById(`step-${i}`);
+          if (!item) continue;
+          const icon = item.querySelector('.step-icon');
+          if (i === 0) {
+            item.className = 'step-item active';
+            if (icon) icon.textContent = '0';
+          } else {
+            item.className = 'step-item';
+            if (icon) icon.textContent = i;
           }
         }
       } catch (err) {
-        console.error('Reset request error:', err);
+        console.error("Reset error:", err);
       } finally {
         setTimeout(() => {
-          if (btn) btn.textContent = '🔄 TEST AGAIN';
-        }, 1000);
+          if (btn) btn.textContent = '🔄 Reset Test';
+        }, 800);
       }
     }
 
-    // 1. Robust Video Stream Handler with Snapshot Fallback
+    // Stream Setup with Fallback Polling
     function setupVideoStream() {
+      if (!streamImg) return;
       streamImg.onerror = () => {
-        console.warn("[Stream] MJPEG stream disconnected. Engaging high-rate snapshot polling...");
         if (!fallbackTimer) {
           fallbackTimer = setInterval(() => {
-            const tempImg = new Image();
-            tempImg.onload = () => {
-              streamImg.src = tempImg.src;
-            };
-            tempImg.src = '/snapshot?t=' + Date.now();
-          }, 40); // 25 FPS fallback
+            const temp = new Image();
+            temp.onload = () => { streamImg.src = temp.src; };
+            temp.src = '/snapshot?t=' + Date.now();
+          }, 50);
         }
       };
-
       streamImg.onload = () => {
         if (fallbackTimer && streamImg.src.includes('/stream')) {
           clearInterval(fallbackTimer);
           fallbackTimer = null;
-          console.log("[Stream] MJPEG stream re-engaged.");
         }
       };
     }
     setupVideoStream();
 
-    // 2. High-Frequency Real-Time Telemetry Polling (25 Hz / 40ms)
+    // High-Frequency Real-Time Telemetry Sync (25 Hz)
     async function updateTelemetry() {
       try {
         const resp = await fetch('/telemetry?t=' + Date.now());
@@ -925,123 +634,87 @@
         const data = await resp.json();
         if (!data || data.step === undefined) return;
 
-        // Synchronize Active Video Source and Protocol UI
+        // FPS
+        if (tFps && data.fps !== undefined) {
+          tFps.textContent = data.fps.toFixed(1);
+        }
+
+        // Source & Title
         if (data.source_type) {
-          updateSourceUI(data.source_type);
+          const isCam = data.source_type === "LIVE_WEBCAM";
+          const isRY = data.source_type === "RED_YELLOW" || String(data.source_type).includes("red_yellow");
+          if (tSrc) {
+            tSrc.textContent = isCam ? "LIVE WEBCAM" : (isRY ? "RED-YELLOW" : "BOX RETURN");
+            tSrc.style.color = isCam ? "var(--accent-green)" : (isRY ? "var(--accent-cyan)" : "var(--accent-orange)");
+          }
+          if (feedTitle) {
+            feedTitle.textContent = isCam ? "LIVE CAMERA FEED" : (isRY ? "ISRO RED-YELLOW EXPERIMENT FEED" : "RECORDED DEMO FEED");
+          }
         }
+
+        // Checklist protocol sync
         if (data.experiment_id && data.experiment_id !== activeExperimentId) {
-          renderChecklistForProtocol(data.experiment_id);
+          renderChecklist(data.experiment_id);
         }
 
-        // Update Header Telemetry Badges
-        if (data.fps !== undefined) tFps.textContent = data.fps.toFixed(1);
-        const debVal = data.debounce !== undefined ? data.debounce : 0;
-        const debMax = data.debounce_max !== undefined ? data.debounce_max : 6;
-        tDeb.textContent = `${debVal}/${debMax}`;
+        const maxSteps = (PROTOCOLS[activeExperimentId] && PROTOCOLS[activeExperimentId].steps) ? PROTOCOLS[activeExperimentId].steps.length - 1 : 5;
 
-        const lidAngle = data.lid_angle !== undefined ? data.lid_angle : 0;
-        const lidStatus = lidAngle >= 28 ? 'OPEN' : 'CLOSED';
-        if (tLid) tLid.textContent = `${lidAngle.toFixed(0)}° [${lidStatus}]`;
-
-        // Update Real-Time Step Correctness Indicator
-        const verdictBadge = document.getElementById('step-verdict-badge');
-        const isStepNominal = (data.is_step_correct !== false) && (!data.anomaly || data.anomaly === "NONE");
+        // Step Correctness Verdict Badge
+        const isNominal = (data.is_step_correct !== false) && (!data.anomaly || data.anomaly === "NONE");
         if (verdictBadge) {
-          if (isStepNominal) {
-            verdictBadge.className = 'step-verdict-pill nominal';
+          if (isNominal) {
+            verdictBadge.className = 'verdict-pill nominal';
             verdictBadge.textContent = '✓ STEP: CORRECT (NOMINAL)';
           } else {
-            verdictBadge.className = 'step-verdict-pill error';
+            verdictBadge.className = 'verdict-pill error';
             const aName = data.anomaly && data.anomaly !== "NONE" ? data.anomaly : "PROCEDURAL ERROR";
             verdictBadge.textContent = `⚠ STEP ERROR: [${aName}]`;
           }
         }
 
-        // Update On-Video Floating HUD Overlays
-        const activeProto = PROTOCOLS[activeExperimentId] || PROTOCOLS["BAS-EXP-BOX-RETURN"];
-        const curStepObj = activeProto.steps.find(s => s.id === data.step);
-        const sTxt = curStepObj ? curStepObj.title.toUpperCase() : `STEP ${data.step}: ${data.step_name}`;
+        // What I Am Doing & Guidance
+        const isComplete = (data.step >= maxSteps || data.step_name === "COMPLETE" || data.step_name === "BOX_CLOSED" || data.step_name === "DUAL_COMPLETE");
 
-        const stepNameText = document.getElementById('step-name-text');
-        if (stepNameText) {
-          stepNameText.textContent = sTxt;
-        } else if (overlayStepName) {
-          overlayStepName.textContent = sTxt;
-        }
-        if (overlayDebText) {
-          overlayDebText.textContent = `${debVal}/${debMax}`;
-        }
-        if (overlayDebBar) {
-          const fillPct = Math.min(100, Math.round((debVal / debMax) * 100));
-          overlayDebBar.style.width = fillPct + '%';
-        }
-
-        const isComplete = (data.step === 4 || data.step_name === "COMPLETE");
-
-        // Update Dual Action Cards (What I'm Doing & What I Have to Do)
-        const elDoing = document.getElementById('action-doing');
-        const elTodo = document.getElementById('action-todo');
-        const cardTodo = document.getElementById('card-todo');
-        const tagTodo = document.getElementById('tag-todo');
-
-        if (isComplete) {
-          if (elDoing) elDoing.textContent = "PROCEDURE COMPLETED (NOMINAL)";
-          if (elTodo) elTodo.textContent = "Box closed. All 4 procedural steps complete.";
-          if (cardTodo) cardTodo.className = 'action-card todo';
-          if (tagTodo) tagTodo.textContent = "STATUS: VERIFIED COMPLETE";
-        } else {
-          if (elDoing && data.what_i_am_doing) {
+        if (elDoing) {
+          if (isComplete) {
+            elDoing.textContent = "PROCEDURE COMPLETED (NOMINAL)";
+          } else if (data.what_i_am_doing) {
             elDoing.textContent = data.what_i_am_doing !== "IDLE" ? data.what_i_am_doing : "OBSERVING WORKSPACE (IDLE)";
           }
-          if (elTodo && data.what_i_have_to_do) {
+        }
+
+        if (elTodo) {
+          if (isComplete) {
+            elTodo.textContent = "All experiment steps verified with 100% sequence compliance.";
+          } else if (data.what_i_have_to_do) {
             elTodo.textContent = data.what_i_have_to_do;
           }
-          if (cardTodo) {
-            if (data.anomaly && data.anomaly !== "NONE") {
-              cardTodo.className = 'action-card anomaly';
-              if (tagTodo) tagTodo.textContent = `ALERT [${data.anomaly}]`;
-            } else {
-              cardTodo.className = 'action-card todo';
-              if (tagTodo) tagTodo.textContent = "WHAT I HAVE TO DO (NEXT STEP)";
-            }
+        }
+
+        if (cardTodo && tagTodo) {
+          if (isComplete) {
+            cardTodo.className = 'action-card todo';
+            tagTodo.textContent = "STATUS: VERIFIED COMPLETE";
+          } else if (data.anomaly && data.anomaly !== "NONE") {
+            cardTodo.className = 'action-card anomaly';
+            tagTodo.textContent = `ALERT: ${data.anomaly}`;
+          } else {
+            cardTodo.className = 'action-card todo';
+            tagTodo.textContent = "NEXT REQUIRED ACTION";
           }
         }
 
-        // Detect cycle completion and loop back to Step 0
-        if (previousStep !== null && previousStep >= 3 && data.step === 0) {
-          logBox.innerHTML = '<div class="log-line log-success">[SYSTEM] Experiment video looped back to start. Resetting test cycle...</div>';
-          lastEventLogged = null;
-          lastAnomalyLogged = null;
-          llmAuditTriggered = false;
-          const statusBadge = document.getElementById('fsm-status-badge');
-          if (statusBadge) statusBadge.style.display = 'none';
-        }
-        previousStep = data.step;
-
-        // Auto-Trigger Offline LLM Audit on Step 4 (COMPLETE)
-        if (isComplete && !llmAuditTriggered) {
-          llmAuditTriggered = true;
-          console.log("[Client] Step 4 reached. Triggering automated Offline LLM Audit...");
-          triggerLLMAudit();
-        }
-
-        // Update Checklist Status Badge
-        const statusBadge = document.getElementById('fsm-status-badge');
+        // Checklist Progress
         if (statusBadge) {
           statusBadge.style.display = isComplete ? 'inline-block' : 'none';
         }
 
-        // Update Active Step Checklist
-        for (let i = 0; i <= 4; i++) {
+        for (let i = 0; i <= maxSteps; i++) {
           const item = document.getElementById(`step-${i}`);
           if (!item) continue;
           const icon = item.querySelector('.step-icon');
 
-          if (isComplete) {
-            // When procedure is complete, ALL steps 0-4 are marked COMPLETED with checkmark!
-            item.className = 'step-item completed';
-            if (icon) icon.textContent = '✓';
-          } else if (i < data.step) {
+          if (isComplete || i < data.step) {
             item.className = 'step-item completed';
             if (icon) icon.textContent = '✓';
           } else if (i === data.step) {
@@ -1053,119 +726,12 @@
           }
         }
 
-        // Update Prompt & Anomaly Banner
-        if (isComplete) {
-          promptBox.className = 'prompt-box';
-          promptBox.style.borderColor = 'var(--accent-green)';
-          promptBox.style.background = 'rgba(0, 230, 118, 0.1)';
-          promptLabel.textContent = 'MISSION COMPLETE:';
-          promptLabel.style.color = 'var(--accent-green)';
-          promptText.textContent = 'Box securely closed. All 4 procedural steps verified with 100% nominal compliance.';
-        } else if (data.anomaly && data.anomaly !== "NONE") {
-          promptBox.className = 'prompt-box anomaly';
-          promptBox.style.borderColor = '';
-          promptBox.style.background = '';
-          promptLabel.textContent = `ANOMALY [${data.anomaly}]:`;
-          promptLabel.style.color = '';
-          if (data.instruction) promptText.textContent = data.instruction;
-        } else {
-          promptBox.className = 'prompt-box';
-          promptBox.style.borderColor = '';
-          promptBox.style.background = '';
-          promptLabel.textContent = 'NEXT STEP:';
-          promptLabel.style.color = '';
-          if (data.instruction) promptText.textContent = data.instruction;
-        }
-
-        // Append Structured Log Lines on New Transitions or Anomalies
-        if (data.transition_event && data.transition_event !== lastEventLogged) {
-          lastEventLogged = data.transition_event;
-          const line = document.createElement('div');
-          line.className = 'log-line log-success';
-          line.textContent = `[STATE_COMMITTED] Frame ${data.frame_id}: Event '${data.transition_event}' -> Step ${data.step} (${data.step_name})`;
-          logBox.appendChild(line);
-          logBox.scrollTop = logBox.scrollHeight;
-        }
-
-        if (data.anomaly && data.anomaly !== "NONE" && data.anomaly !== lastAnomalyLogged) {
-          lastAnomalyLogged = data.anomaly;
-          const line = document.createElement('div');
-          line.className = 'log-line log-alert';
-          line.textContent = `[ANOMALY_ALARM] Frame ${data.frame_id}: ${data.anomaly} detected. Priority voice triggered.`;
-          logBox.appendChild(line);
-          logBox.scrollTop = logBox.scrollHeight;
-        } else if (data.anomaly === "NONE") {
-          lastAnomalyLogged = null;
-        }
-
       } catch (err) {
-        // Silent catch for intermittent polling errors
+        // Silent catch for smooth polling
       }
     }
 
-    let llmAuditTriggered = false;
-    let isAuditing = false;
-    let auditPollTimer = null;
-
-    // 3. Offline LLM Procedural Audit Query (Non-blocking with background status polling)
-    async function triggerLLMAudit(force = false) {
-      if (isAuditing && !force) return;
-      isAuditing = true;
-
-      const btn = document.getElementById('btn-llm');
-      const box = document.getElementById('llm-audit-box');
-      if (btn) btn.textContent = '⏳ RUNNING OFFLINE LLM...';
-      if (box) box.innerHTML = '<div class="llm-placeholder">🤖 Local AI Mission Audit running in background...</div>';
-
-      let attempts = 0;
-      async function pollAudit() {
-        try {
-          const url = force ? `/api/analyze?force=true&t=${Date.now()}` : `/api/analyze?t=${Date.now()}`;
-          force = false;
-          const resp = await fetch(url);
-          if (resp.ok) {
-            const res = await resp.json();
-            if (res.status === "running" && attempts < 15) {
-              attempts++;
-              auditPollTimer = setTimeout(pollAudit, 1000);
-              return;
-            }
-            if (res.report && box) {
-              let html = res.report
-                .replace(/### (.*?)\n/g, '<h3>$1</h3>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/- (.*?)\n/g, '<li>$1</li>')
-                .replace(/\n\n/g, '<br>');
-              box.innerHTML = `<div style="animation: fadeIn 0.4s ease;">${html}</div>`;
-            }
-          }
-        } catch (err) {
-          if (box) box.innerHTML = `<div class="llm-placeholder" style="color: var(--accent-red);">Offline LLM notice: ${err}</div>`;
-        } finally {
-          isAuditing = false;
-          if (btn) btn.textContent = '🤖 RUN LLM AUDIT';
-        }
-      }
-
-      pollAudit();
-    }
-
-    // 4. Periodic Session Action JSON Telemetry Poll
-    async function updateSessionStats() {
-      try {
-        const resp = await fetch('/api/session_actions?t=' + Date.now());
-        if (!resp.ok) return;
-        const d = await resp.json();
-        const statEl = document.getElementById('session-stats');
-        if (statEl && d.total_actions_recorded !== undefined) {
-          statEl.textContent = `${d.total_actions_recorded} Actions Logged | ${d.summary ? d.summary.compliance_status : 'NOMINAL'}`;
-        }
-      } catch (e) {}
-    }
-
-    // High frequency 40ms sync (25 Hz) for zero-latency UI updates
     setInterval(updateTelemetry, 40);
-    setInterval(updateSessionStats, 1500);
   </script>
 </body>
 </html>

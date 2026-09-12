@@ -72,17 +72,19 @@ class RealtimeCSVTelemetryLogger:
     def __init__(
         self,
         output_csv_path: Optional[str] = None,
-        realtime_feed_dir: str = "realtime_feed"
+        realtime_feed_dir: str = "realtime_feed",
+        output_dir: str = "experiments"
     ):
-        os.makedirs("experiments", exist_ok=True)
+        self.output_dir = output_dir
+        os.makedirs(self.output_dir, exist_ok=True)
         if output_csv_path is None:
             ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            self.output_path = f"experiments/telemetry_{ts}.csv"
+            self.output_path = os.path.join(self.output_dir, f"telemetry_{ts}.csv")
         else:
             self.output_path = output_csv_path
             os.makedirs(os.path.dirname(os.path.abspath(output_csv_path)), exist_ok=True)
 
-        self.latest_symlink_path = "experiments/latest_telemetry.csv"
+        self.latest_symlink_path = os.path.join(self.output_dir, "latest_telemetry.csv")
 
         # 1. Primary archival file
         self._file = open(self.output_path, "w", newline="", encoding="utf-8")

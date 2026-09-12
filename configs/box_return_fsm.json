@@ -41,22 +41,22 @@
   "anomalies": {
     "ERROR_SKIP": {
       "code": "ERR_01_PREMATURE_CLOSE",
-      "alert_tts": "Warning: Step skipped. Please extract and return the object before closing the box.",
+      "alert_tts": "Warning: Wrong move! Step skipped. Please extract and return the object before closing the box.",
       "recovery_prompt": "Reopen the box and complete the object extraction and return sequence."
     },
     "ERROR_SEQ": {
       "code": "ERR_02_OBJECT_NOT_RETURNED",
-      "alert_tts": "Warning: Procedural error. The object has not been returned to the box.",
+      "alert_tts": "Warning: Wrong move! Procedural error. The object has not been returned to the box.",
       "recovery_prompt": "Reopen the box and return the object inside before closing."
     },
     "ERROR_PREMATURE_CLOSE": {
       "code": "ERR_01_PREMATURE_CLOSE",
-      "alert_tts": "Warning: Step skipped. Please extract and return the object before closing the box.",
+      "alert_tts": "Warning: Wrong move! Step skipped. Please extract and return the object before closing the box.",
       "recovery_prompt": "Reopen the box and complete the object extraction and return sequence."
     },
     "ERROR_UNRETURNED_CLOSE": {
       "code": "ERR_02_OBJECT_NOT_RETURNED",
-      "alert_tts": "Warning: Procedural error. The object has not been returned to the box.",
+      "alert_tts": "Warning: Wrong move! Procedural error. The object has not been returned to the box.",
       "recovery_prompt": "Reopen the box and return the object inside before closing."
     },
     "STALL_TIMEOUT": {

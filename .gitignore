@@ -72,6 +72,7 @@ checkpoints/
 *.tflite
 *.safetensors
 models/*.pt
+models/*.backup.pt
 !models/.gitkeep
 
 # Telemetry Output Logs & Ephemeral Experiment Feeds
@@ -80,6 +81,10 @@ experiments/video_*
 experiments/debug_frames/
 experiments/clip_frames/
 experiments/detections/
+experiments/red_yellow_frames/
+experiments/red_yellow_samples/
+experiments_red_yellow/
+realtime_feed_red_yellow/
 realtime_feed/*.csv
 !realtime_feed/.gitkeep
 

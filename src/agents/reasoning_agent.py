@@ -1,10 +1,11 @@
 """
 BAS Autonomous HAR System - Agent 7: Reasoning & Guidance Agent
 Interprets procedural state, produces next-step astronaut instructions,
-and formulates immediate voice alerts and recovery prompts upon anomaly detection.
+and formulates immediate priority voice alerts and recovery prompts upon wrong moves or anomalies.
 """
 
 import json
+import time
 from typing import Optional, Tuple
 from src.core.types import FSMStep, AnomalyType
 
@@ -26,13 +27,27 @@ class ReasoningAgent:
 
         self.last_guided_step: Optional[FSMStep] = None
         self.last_anomaly_alert: Optional[AnomalyType] = None
+        self.is_in_wrong_move: bool = False
+        self.last_spoken_wrong_move: str = ""
+        self.last_wrong_move_time: float = 0.0
+
+    def reset(self):
+        """Resets guidance memory when restarting or looping."""
+        self.last_guided_step = None
+        self.last_anomaly_alert = None
+        self.is_in_wrong_move = False
+        self.last_spoken_wrong_move = ""
+        self.last_wrong_move_time = 0.0
 
     def evaluate_guidance(
         self,
         current_step: FSMStep,
         anomaly: AnomalyType,
         transition_event: Optional[str],
-        vlm_explanation: Optional[str] = None
+        vlm_explanation: Optional[str] = None,
+        is_step_correct: bool = True,
+        step_verdict: str = "",
+        anomaly_message: Optional[str] = None
     ) -> Tuple[str, Optional[str]]:
         """
         Determines current on-screen instruction and any pending spoken alert.
@@ -42,38 +57,62 @@ class ReasoningAgent:
         """
         voice_alert: Optional[str] = None
         instruction = self.step_instructions.get(current_step, "Awaiting instructions.")
+        now = time.time()
 
-        # 1. Handle Critical Anomalies (Highest Priority)
-        if anomaly != AnomalyType.NONE and anomaly != self.last_anomaly_alert:
+        # =====================================================================
+        # 1. Handle Critical Anomalies & Wrong Moves (Highest Priority)
+        # =====================================================================
+        is_wrong_move = (not is_step_correct) or (anomaly != AnomalyType.NONE)
+
+        if is_wrong_move:
             self.last_anomaly_alert = anomaly
-            anom_key = anomaly.value if hasattr(anomaly, "value") else str(anomaly)
-            anom_dict = self.config.get("anomalies", {})
-            anom_info = anom_dict.get(anom_key) or anom_dict.get(anomaly.name, {})
 
-            if not anom_info:
-                if "SKIP" in anom_key:
-                    anom_info = anom_dict.get("ERROR_SKIP", anom_dict.get("ERROR_PREMATURE_CLOSE", {}))
-                elif "SEQ" in anom_key:
-                    anom_info = anom_dict.get("ERROR_SEQ", anom_dict.get("ERROR_UNRETURNED_CLOSE", {}))
-                elif "STALL" in anom_key or "TIMEOUT" in anom_key:
-                    anom_info = anom_dict.get("STALL_TIMEOUT", {})
+            # Formulate clear, urgent spoken alert
+            if anomaly_message and anomaly_message.strip():
+                if not anomaly_message.startswith("Warning: Wrong move"):
+                    voice_alert = f"Warning: Wrong move! {anomaly_message.replace('Warning: ', '')}"
                 else:
-                    anom_info = {}
-
-            if vlm_explanation and vlm_explanation != "None":
-                voice_alert = f"Warning: {vlm_explanation}"
-                instruction = f"ANOMALY: {vlm_explanation}"
+                    voice_alert = anomaly_message
+            elif vlm_explanation and vlm_explanation != "None":
+                voice_alert = f"Warning: Wrong move! {vlm_explanation}"
             else:
-                voice_alert = anom_info.get("alert_tts", "Warning: Procedural deviation detected.")
-                rec_prompt = anom_info.get("recovery_prompt", "Please resume nominal procedure.")
-                instruction = f"ANOMALY: {rec_prompt}"
-            return instruction, voice_alert
+                anom_key = anomaly.value if hasattr(anomaly, "value") else str(anomaly)
+                anom_dict = self.config.get("anomalies", {})
+                anom_info = anom_dict.get(anom_key) or anom_dict.get(getattr(anomaly, "name", ""), {})
+            if not voice_alert:
+                voice_alert = "Warning: Wrong move! Procedural deviation detected."
+
+            # Formulate on-screen HUD instruction
+            clean_display = voice_alert.replace("Warning: Wrong move! ", "").replace("Warning: ", "")
+            instruction = f"WRONG MOVE: {clean_display}"
+
+            # Speak immediately on first detection, or repeat every 4.0s if persistent
+            if not self.is_in_wrong_move or voice_alert != self.last_spoken_wrong_move or (now - self.last_wrong_move_time) > 4.0:
+                self.is_in_wrong_move = True
+                self.last_spoken_wrong_move = voice_alert
+                self.last_wrong_move_time = now
+                return instruction, voice_alert
+            else:
+                return instruction, None
+
+        # =====================================================================
+        # 2. Recovery from Wrong Move -> Re-orient with Next Step
+        # =====================================================================
+        if self.is_in_wrong_move:
+            self.is_in_wrong_move = False
+            self.last_spoken_wrong_move = ""
+            self.last_wrong_move_time = 0.0
+            self.last_anomaly_alert = None
+            # Force speaking the current step to immediately re-orient the operator
+            self.last_guided_step = None
 
         # Reset anomaly memory once resolved
         if anomaly == AnomalyType.NONE:
             self.last_anomaly_alert = None
 
-        # 2. Handle State Transitions / Next-Step Guidance
+        # =====================================================================
+        # 3. Handle State Transitions / Next-Step Spoken Guidance
+        # =====================================================================
         if transition_event is not None or current_step != self.last_guided_step:
             self.last_guided_step = current_step
             voice_alert = instruction

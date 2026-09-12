@@ -1,30 +1,16 @@
 {
-  "session_id": "SES-20260912_123617",
+  "session_id": "SES-20260912_153206",
   "experiment_id": "BAS-EXP-BOX-RETURN",
   "procedure_name": "Box Object Extraction & Return Procedure",
-  "start_time": "2026-09-12T07:06:17.730287+00:00",
-  "last_updated": "2026-09-12T07:06:28.322555+00:00",
-  "elapsed_seconds": 10.59,
-  "total_actions_recorded": 1,
+  "start_time": "2026-09-12T10:02:06.608396+00:00",
+  "last_updated": "2026-09-12T10:02:06.608420+00:00",
+  "elapsed_seconds": 0.0,
+  "total_actions_recorded": 0,
   "summary": {
-    "total_steps_executed": 1,
+    "total_steps_executed": 0,
     "anomalies_flagged": 0,
     "anomaly_details": [],
     "compliance_status": "100% NOMINAL"
   },
-  "timeline": [
-    {
-      "step": 0,
-      "step_name": "IDLE",
-      "what_i_am_doing": "IDLE",
-      "what_i_have_to_do": "System initialized. Please open the box.",
-      "start_time_sec": 0.04,
-      "end_time_sec": 2.63,
-      "duration_sec": 2.59,
-      "start_frame": 1,
-      "end_frame": 25,
-      "lid_angle_deg": 0.0,
-      "compliance": "NOMINAL"
-    }
-  ]
+  "timeline": []
 }

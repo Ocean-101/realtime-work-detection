@@ -28,6 +28,13 @@ class IMUAgent:
         self._prev_wrist_vel: Vector3D = Vector3D()
         self._prev_timestamp = time.time()
 
+    def reset(self):
+        """Resets virtual IMU kinematic states."""
+        self.last_readings.clear()
+        self._prev_wrist_pos = None
+        self._prev_wrist_vel = Vector3D()
+        self._prev_timestamp = time.time()
+
     def update_from_vision(self, pose: AstronautPose3D) -> Dict[str, IMUReading]:
         """
         Derives 128 Hz virtual IMU telemetry from 3D visual kinematics.
