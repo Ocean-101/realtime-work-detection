@@ -20,7 +20,12 @@ WORKSPACE_ROOT = os.path.dirname(os.path.abspath(__file__))
 if WORKSPACE_ROOT not in sys.path:
     sys.path.insert(0, WORKSPACE_ROOT)
 
-# Also check for .venv packages
+# Auto-switch to project virtual environment interpreter if launched via global python
+_venv_python = os.path.join(WORKSPACE_ROOT, ".venv", "Scripts", "python.exe")
+if os.path.exists(_venv_python) and os.path.abspath(sys.executable).lower() != os.path.abspath(_venv_python).lower():
+    import subprocess
+    sys.exit(subprocess.call([_venv_python] + sys.argv))
+
 _venv_site = os.path.join(WORKSPACE_ROOT, ".venv", "Lib", "site-packages")
 if os.path.exists(_venv_site) and _venv_site not in sys.path:
     sys.path.insert(0, _venv_site)

@@ -46,7 +46,7 @@ class RealtimeLLMVerifier:
         self.latest_frame: Optional[np.ndarray] = None
         self.latest_detected_objects: List[str] = []
         self.trigger_event = threading.Event()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
         # Step definitions dynamically set by protocol
         self.max_step = 5 if ("red_yellow" in experiment_id.lower() or "26174" in experiment_id) else 4

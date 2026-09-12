@@ -145,8 +145,7 @@ class ValidationAgent:
                 is_opening = (
                     lid_angle >= 18.0
                     or ("container_lid" in objects and objects["container_lid"].bbox is not None)
-                    or (llm_step_val is not None and llm_step_val >= 1 and llm_confidence >= 0.75 and (lid_angle >= 14.0 or current_frame >= 60))
-                    or current_frame >= 95
+                    or (llm_step_val is not None and llm_step_val >= 1 and llm_confidence >= 0.75 and lid_angle >= 14.0)
                 )
                 if is_opening:
                     self._accumulate_debounce(FSMStep.CONTAINER_OPEN)
@@ -204,8 +203,6 @@ class ValidationAgent:
                 red_extracted = False
                 if red_obj and (not red_obj.is_inside_container or red_obj.state == EntityState.EXTRACTED):
                     red_extracted = True
-                elif current_frame >= 165:  # t >= 5.5s in red_yellow.mp4
-                    red_extracted = True
 
                 if red_extracted:
                     self._accumulate_debounce(FSMStep.RED_EXTRACTED)
@@ -243,8 +240,6 @@ class ValidationAgent:
                 yellow_extracted = False
                 yellow_obj = objects.get("yellow_box")
                 if yellow_obj and (not yellow_obj.is_inside_container or yellow_obj.state == EntityState.EXTRACTED):
-                    yellow_extracted = True
-                elif current_frame >= 335:  # t >= 11.2s in red_yellow.mp4
                     yellow_extracted = True
 
                 if yellow_extracted:
@@ -285,8 +280,6 @@ class ValidationAgent:
                 red_obj = objects.get("red_box")
                 if (yellow_obj and yellow_obj.is_inside_container) and (red_obj and red_obj.is_inside_container):
                     objects_returned = True
-                elif current_frame >= 530:  # t >= 17.6s in red_yellow.mp4
-                    objects_returned = True
 
                 if objects_returned:
                     self._accumulate_debounce(FSMStep.OBJECTS_RETURNED)
@@ -305,7 +298,7 @@ class ValidationAgent:
             elif self.current_step == FSMStep.OBJECTS_RETURNED:
                 box_closed = (
                     lid_angle <= 18.0
-                    or current_frame >= 640  # t >= 21.3s in red_yellow.mp4
+                    and ("container_lid" not in objects or objects["container_lid"].bbox is None)
                 )
                 if box_closed:
                     self._accumulate_debounce(FSMStep.BOX_CLOSED)

@@ -8,8 +8,14 @@ and dual-stream video output for the Bharatiya Antariksh Station (BAS).
 import sys
 import os
 
-# Ensure .venv dependencies are accessible even if user runs system python
-_venv_site = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".venv", "Lib", "site-packages")
+# Auto-switch to project virtual environment interpreter if launched via global python
+_workspace_dir = os.path.dirname(os.path.abspath(__file__))
+_venv_python = os.path.join(_workspace_dir, ".venv", "Scripts", "python.exe")
+if os.path.exists(_venv_python) and os.path.abspath(sys.executable).lower() != os.path.abspath(_venv_python).lower():
+    import subprocess
+    sys.exit(subprocess.call([_venv_python] + sys.argv))
+
+_venv_site = os.path.join(_workspace_dir, ".venv", "Lib", "site-packages")
 if os.path.exists(_venv_site) and _venv_site not in sys.path:
     sys.path.insert(0, _venv_site)
 
