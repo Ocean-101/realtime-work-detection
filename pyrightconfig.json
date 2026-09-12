@@ -1,9 +1,15 @@
 {
-  "venvPath": "e:/SIH",
+  "venvPath": ".",
   "venv": ".venv",
   "extraPaths": [
-    "e:/SIH/.venv/Lib/site-packages",
-    "e:/SIH/src"
+    ".",
+    "src",
+    ".venv/Lib/site-packages"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
   ],
   "reportMissingImports": "warning"
 }

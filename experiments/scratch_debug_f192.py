@@ -14,7 +14,8 @@ for f in range(180, 240, 5):
     sec = f / fps
     objs, pose, lid = perception.process_frame(frame)
     comp = objs.get("component_box")
-    c_str = f"inside={comp.is_inside_container}, state={comp.state.value}, bbox=({comp.bbox.xmin:.0f},{comp.bbox.ymin:.0f},{comp.bbox.xmax:.0f},{comp.bbox.ymax:.0f})" if comp else "None"
+    b_str = f"({comp.bbox.xmin:.0f},{comp.bbox.ymin:.0f},{comp.bbox.xmax:.0f},{comp.bbox.ymax:.0f})" if comp and comp.bbox else "None"
+    c_str = f"inside={comp.is_inside_container}, state={comp.state.value}, bbox={b_str}" if comp else "None"
     print(f"F{f:03d} (t={sec:.2f}s): lid={lid:.1f} | comp={c_str}")
 
 cap.release()

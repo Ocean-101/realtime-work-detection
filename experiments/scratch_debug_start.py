@@ -17,7 +17,7 @@ for frame_idx in range(0, 100, 10):
     cont = objs.get("container_box")
     lid = objs.get("container_lid")
     print(f"t={sec:.2f}s (F{frame_idx}): lid_angle={lid_angle:.1f} | cont={cont is not None} | lid={lid is not None} | comp={comp.state if comp else None} | comp_inside={comp.is_inside_container if comp else None}")
-    if comp:
+    if comp and comp.bbox:
         print(f"   comp bbox: {comp.bbox.xmin:.1f}, {comp.bbox.ymin:.1f}, {comp.bbox.xmax:.1f}, {comp.bbox.ymax:.1f}")
 
 cap.release()

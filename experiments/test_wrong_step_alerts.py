@@ -26,6 +26,7 @@ mock_objects = {
 }
 
 # Accumulate debounce for BOX_OPENED
+step = None
 for f in range(validation.debounce_required):
     step, deb, anom, msg, evt = validation.evaluate_step(mock_objects, lid_angle=45.0, active_hoi=[], current_frame=f)
 
@@ -59,6 +60,7 @@ mock_objects_extracted = {
     "container_lid": mock_objects["container_lid"],
     "component_box": ExperimentObject(name="component_box", class_name="component_box", is_inside_container=False, state=EntityState.EXTRACTED)
 }
+step = None
 for f in range(validation.debounce_required):
     step, deb, anom, msg, evt = validation.evaluate_step(mock_objects_extracted, lid_angle=45.0, active_hoi=[], current_frame=f + 10)
 

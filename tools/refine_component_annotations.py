@@ -6,6 +6,7 @@ Updates dataset/box_manipulation_dataset label files with:
 3. Accurate human_body (class 4) and operator_hand (class 3) annotations.
 """
 import os, glob, cv2, json, numpy as np
+from typing import Any
 from ultralytics import YOLO
 
 DATASET_ROOT = os.path.abspath("dataset/box_manipulation_dataset")
@@ -23,16 +24,18 @@ def refine_annotations():
     action_records = {}
     if os.path.exists(action_json_path):
         with open(action_json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            for r in data.get("records", []):
-                action_records[r["sample_name"]] = r.get("timestamp_sec", 0.0)
-                
+            action_records = json.load(f)
+            
     total_updated = 0
+    total_comp_boxes = 0
     
     for split in ["train", "val"]:
         img_dir = os.path.join(DATASET_ROOT, "images", split)
         lbl_dir = os.path.join(DATASET_ROOT, "labels", split)
         
+        if not os.path.exists(img_dir) or not os.path.exists(lbl_dir):
+            continue
+            
         img_files = sorted(glob.glob(os.path.join(img_dir, "*.jpg")))
         print(f"\nProcessing {split.upper()} ({len(img_files)} images)...")
         
@@ -41,6 +44,8 @@ def refine_annotations():
             lbl_path = os.path.join(lbl_dir, f"{base_name}.txt")
             
             frame = cv2.imread(img_path)
+            if frame is None:
+                continue
             h, w = frame.shape[:2]
             
             # Read existing annotations
@@ -53,25 +58,27 @@ def refine_annotations():
                             existing_boxes.append((int(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])))
                             
             # 1. Pose detection for human body & wrists
-            res = pose_model(frame, verbose=False, conf=0.25)
+            res = list(pose_model(frame, verbose=False, conf=0.25))
             wrists = []
             human_box = None
-            if res and len(res[0].boxes) > 0:
-                # Human body bbox
-                b = res[0].boxes[0]
-                bx1, by1, bx2, by2 = b.xyxy[0].tolist()
-                hcx = ((bx1 + bx2) / 2.0) / w
-                hcy = ((by1 + by2) / 2.0) / h
-                hbw = (bx2 - bx1) / w
-                hbh = (by2 - by1) / h
-                human_box = (4, hcx, hcy, hbw, hbh)
-                
-                if res[0].keypoints is not None:
-                    kp = res[0].keypoints.xy[0].cpu().numpy()
-                    kconf = res[0].keypoints.conf[0].cpu().numpy()
-                    for idx in [9, 10]:
-                        if kconf[idx] > 0.35:
-                            wrists.append((float(kp[idx][0]), float(kp[idx][1])))
+            if res:
+                r0: Any = res[0]
+                if r0.boxes is not None and len(r0.boxes) > 0:
+                    # Human body bbox
+                    b = r0.boxes[0]
+                    bx1, by1, bx2, by2 = b.xyxy[0].tolist()
+                    hcx = ((bx1 + bx2) / 2.0) / w
+                    hcy = ((by1 + by2) / 2.0) / h
+                    hbw = (bx2 - bx1) / w
+                    hbh = (by2 - by1) / h
+                    human_box = (4, hcx, hcy, hbw, hbh)
+                    
+                    if r0.keypoints is not None:
+                        kp = r0.keypoints.xy[0].cpu().numpy()
+                        kconf = r0.keypoints.conf[0].cpu().numpy()
+                        for idx in [9, 10]:
+                            if kconf[idx] > 0.35:
+                                wrists.append((float(kp[idx][0]), float(kp[idx][1])))
                             
             # 2. Check extracted cardboard payload in air (y < 580)
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)

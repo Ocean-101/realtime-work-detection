@@ -3,6 +3,8 @@ import cv2, numpy as np, glob, os
 images = sorted(glob.glob("experiments/clip1_analysis_frames/frame_t1*.jpg"))
 for img_path in images:
     frame = cv2.imread(img_path)
+    if frame is None:
+        continue
     h, w = frame.shape[:2]
     cont_ymin = int(0.55 * h)
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)

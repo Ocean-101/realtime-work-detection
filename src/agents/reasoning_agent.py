@@ -31,7 +31,8 @@ class ReasoningAgent:
         self,
         current_step: FSMStep,
         anomaly: AnomalyType,
-        transition_event: Optional[str]
+        transition_event: Optional[str],
+        vlm_explanation: Optional[str] = None
     ) -> Tuple[str, Optional[str]]:
         """
         Determines current on-screen instruction and any pending spoken alert.
@@ -59,9 +60,13 @@ class ReasoningAgent:
                 else:
                     anom_info = {}
 
-            voice_alert = anom_info.get("alert_tts", f"Warning: Procedural deviation detected.")
-            rec_prompt = anom_info.get("recovery_prompt", "Please resume nominal procedure.")
-            instruction = f"ANOMALY: {rec_prompt}"
+            if vlm_explanation and vlm_explanation != "None":
+                voice_alert = f"Warning: {vlm_explanation}"
+                instruction = f"ANOMALY: {vlm_explanation}"
+            else:
+                voice_alert = anom_info.get("alert_tts", "Warning: Procedural deviation detected.")
+                rec_prompt = anom_info.get("recovery_prompt", "Please resume nominal procedure.")
+                instruction = f"ANOMALY: {rec_prompt}"
             return instruction, voice_alert
 
         # Reset anomaly memory once resolved

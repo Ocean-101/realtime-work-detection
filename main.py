@@ -62,9 +62,9 @@ def run_orchestrator(
     # 1. Initialize Shared Memory Blackboard
     blackboard = DigitalTwinBlackboard()
 
-    # 2. Instantiate Real-Time Asynchronous Local LLM Verifier (Ollama Qwen 2.5)
-    print("[Orchestrator] Engaging Local LLM Real-Time Verifier (qwen2.5:1.5b @ http://localhost:11434)...")
-    llm_verifier = RealtimeLLMVerifier()
+    # 2. Instantiate Real-Time Asynchronous Local VLM Verifier (Ollama Qwen3-VL)
+    print("[Orchestrator] Engaging Multimodal VLM Real-Time Verifier (qwen3-vl:2b-instruct @ http://localhost:11434)...")
+    llm_verifier = RealtimeLLMVerifier(model_name="qwen3-vl:2b-instruct")
 
     # 3. Instantiate the 8 Specialized Agents
     print("[Orchestrator] Initializing 8 Specialized Agents...")
@@ -99,22 +99,36 @@ def run_orchestrator(
     source_type = "LIVE_WEBCAM"
     cap = None
 
-    if str(source).lower() == "auto":
-        print("[Orchestrator] Probing physical camera hardware for live real-time detection...")
+    def open_hardware_camera(idx: int):
         for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
             try:
-                c = cv2.VideoCapture(0, backend)
+                c = cv2.VideoCapture(idx, backend)
                 if c.isOpened():
-                    ret_test, _ = c.read()
-                    if ret_test:
-                        cap = c
-                        source = 0
-                        source_type = "LIVE_WEBCAM"
-                        print("[Orchestrator] Active hardware camera #0 detected! Operating in LIVE REAL-TIME DETECTION mode.")
-                        break
-                c.release()
+                    c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    c.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                    c.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                    ret, frame = c.read()
+                    if ret and frame is not None:
+                        return c
+                    c.release()
+                    c = cv2.VideoCapture(idx, backend)
+                    if c.isOpened():
+                        c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                        ret, frame = c.read()
+                        if ret and frame is not None:
+                            return c
+                    c.release()
             except Exception:
                 pass
+        return None
+
+    if str(source).lower() == "auto":
+        print("[Orchestrator] Probing physical camera hardware for live real-time detection...")
+        cap = open_hardware_camera(0)
+        if cap is not None:
+            source = 0
+            source_type = "LIVE_WEBCAM"
+            print("[Orchestrator] Active hardware camera #0 detected! Operating in LIVE REAL-TIME DETECTION mode.")
 
         if cap is None:
             print("[Orchestrator] Notice: No physical camera accessible. Falling back to recorded demo clip...")
@@ -128,29 +142,6 @@ def run_orchestrator(
             source_type = "RECORDED_CLIP"
     elif str(source).isdigit():
         cam_idx = int(source)
-        def open_hardware_camera(idx):
-            for backend in [cv2.CAP_MSMF, cv2.CAP_ANY]:
-                try:
-                    c = cv2.VideoCapture(idx, backend)
-                    if c.isOpened():
-                        c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                        c.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-                        c.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-                        ret, frame = c.read()
-                        if ret and frame is not None:
-                            return c
-                        c.release()
-                        c = cv2.VideoCapture(idx, backend)
-                        if c.isOpened():
-                            c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                            ret, frame = c.read()
-                            if ret and frame is not None:
-                                return c
-                        c.release()
-                except Exception:
-                    pass
-            return None
-
         cap = open_hardware_camera(cam_idx)
         if cap is not None:
             source = cam_idx
@@ -291,8 +282,9 @@ def run_orchestrator(
                                 break
                         if desktop_gui and desktop_gui.is_alive():
                             try:
-                                desktop_gui.root.update_idletasks()
-                                desktop_gui.root.update()
+                                if desktop_gui.root is not None:
+                                    desktop_gui.root.update_idletasks()
+                                    desktop_gui.root.update()
                             except Exception:
                                 pass
                         if agent_monitoring.check_reset_requested():
@@ -348,6 +340,9 @@ def run_orchestrator(
             h_dist = w_joint.pos_rack.distance_to(comp_obj.pos_rack) if (w_joint and comp_obj) else 0.50
             primary_hoi = active_hoi[0].action.value if active_hoi else "IDLE"
 
+            is_priority = (agent_validation.anomaly_status != AnomalyType.NONE) or (agent_validation.debounce_counter > 0)
+            detected_names = list(objects_state.keys())
+
             llm_verifier.push_telemetry(
                 frame_id=frame_id,
                 step=agent_validation.current_step,
@@ -356,7 +351,10 @@ def run_orchestrator(
                 is_inside=is_inside,
                 hoi_action=primary_hoi,
                 hand_dist_m=h_dist,
-                anomaly=agent_validation.anomaly_status
+                anomaly=agent_validation.anomaly_status,
+                frame=raw_frame,
+                detected_objects=detected_names,
+                force_priority=is_priority
             )
             llm_verif = llm_verifier.get_latest_verification()
 
@@ -373,7 +371,7 @@ def run_orchestrator(
 
             # AGENT 7: Reasoning & Guidance Agent (Next-step suggestions + Anomaly alerts)
             instruction, voice_alert = agent_reasoning.evaluate_guidance(
-                step, anomaly, trans_event
+                step, anomaly, trans_event, vlm_explanation=agent_validation.vlm_anomaly_explanation
             )
 
             # Record HAR Dataset Snapshot if enabled
@@ -487,8 +485,10 @@ def run_orchestrator(
                 llm_conf_pct = int(llm_verif.get("confidence", 0.90) * 100)
                 llm_disp = f"S{llm_step_int} ({llm_conf_pct}%)"
                 v_disp = "OK" if agent_validation.is_step_correct else "ERR"
+                vlm_wrong = llm_verif.get("what_is_wrong", "None")
+                wrong_disp = f" | Issue: {vlm_wrong[:35]}" if (vlm_wrong != "None" and not agent_validation.is_step_correct) else ""
                 sys.stdout.write(
-                    f"\r[{source_type[:4]}] F{frame_id:04d} | Step {int(step)}: {step.name:16s} | Verdict: {v_disp} | LLM: {llm_disp:10s} | Deb: {deb_count:02d}/06 | FPS: {fps:4.1f}  "
+                    f"\r[{source_type[:4]}] F{frame_id:04d} | Step {int(step)}: {step.name:16s} | Verdict: {v_disp} | LLM: {llm_disp:10s} | Deb: {deb_count:02d}/06 | FPS: {fps:4.1f}{wrong_disp}  "
                 )
                 sys.stdout.flush()
 

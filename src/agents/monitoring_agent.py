@@ -450,7 +450,7 @@ class MonitoringAgent:
         llm_s_tag = ""
         if llm_verification:
             llm_v_step = llm_verification.get("verified_step", int(current_step))
-            llm_s_tag = f" | LLM: S{llm_v_step}"
+            llm_s_tag = f" | VLM: S{llm_v_step}"
         status_txt = f"FPS: {fps:.0f} | LID: {lid_angle:.0f}d | DEB: {debounce_count}/6{llm_s_tag}"
         (sw, sh), _ = cv2.getTextSize(status_txt, cv2.FONT_HERSHEY_SIMPLEX, status_scale, 1)
         status_x = max(left_bound + 10, w - sw - 14)

@@ -1,5 +1,6 @@
 import cv2, numpy as np
 from ultralytics import YOLO
+from typing import Any
 import sys, os
 
 WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,35 +32,40 @@ for frame_idx in range(0, total_frames, 5):
     h, w = frame.shape[:2]
     
     # 1. Neural detections
-    res_det = detector(frame, verbose=False, conf=0.25)
+    res_det = list(detector(frame, verbose=False, conf=0.25))
     objects = {}
     cont_bbox = None
-    if res_det and len(res_det[0].boxes) > 0:
-        for b in res_det[0].boxes:
-            cid = int(b.cls[0].item())
-            cname = detector.names[cid]
-            conf = float(b.conf[0].item())
-            bx1, by1, bx2, by2 = b.xyxy[0].tolist()
-            bbox = BBox2D(bx1, by1, bx2, by2, conf, cid, cname)
-            if cname == "container_box" and not cont_bbox:
-                cont_bbox = bbox
-                objects["container_box"] = ExperimentObject(name="container_box", class_name="container_box", bbox=bbox)
-            elif cname == "human_body" and "human_body" not in objects:
-                objects["human_body"] = ExperimentObject(name="human_body", class_name="human_body", bbox=bbox)
-            elif cname == "container_lid" and "container_lid" not in objects:
-                objects["container_lid"] = ExperimentObject(name="container_lid", class_name="container_lid", bbox=bbox)
-            elif cname == "component_box" and "component_box" not in objects:
-                objects["component_box"] = ExperimentObject(name="component_box", class_name="component_box", bbox=bbox)
+    if res_det:
+        det0: Any = res_det[0]
+        if det0.boxes is not None and len(det0.boxes) > 0:
+            names = getattr(detector, "names", {})
+            for b in det0.boxes:
+                cid = int(b.cls[0].item())
+                cname = names[cid]
+                conf = float(b.conf[0].item())
+                bx1, by1, bx2, by2 = b.xyxy[0].tolist()
+                bbox = BBox2D(bx1, by1, bx2, by2, conf, cid, cname)
+                if cname == "container_box" and not cont_bbox:
+                    cont_bbox = bbox
+                    objects["container_box"] = ExperimentObject(name="container_box", class_name="container_box", bbox=bbox)
+                elif cname == "human_body" and "human_body" not in objects:
+                    objects["human_body"] = ExperimentObject(name="human_body", class_name="human_body", bbox=bbox)
+                elif cname == "container_lid" and "container_lid" not in objects:
+                    objects["container_lid"] = ExperimentObject(name="container_lid", class_name="container_lid", bbox=bbox)
+                elif cname == "component_box" and "component_box" not in objects:
+                    objects["component_box"] = ExperimentObject(name="component_box", class_name="component_box", bbox=bbox)
                 
     # 2. Pose estimation
-    res_pose = pose_model(frame, verbose=False, conf=0.25)
+    res_pose = list(pose_model(frame, verbose=False, conf=0.25))
     wrists = []
-    if res_pose and len(res_pose[0].boxes) > 0 and res_pose[0].keypoints is not None:
-        kp = res_pose[0].keypoints.xy[0].cpu().numpy()
-        kconf = res_pose[0].keypoints.conf[0].cpu().numpy()
-        for idx in [9, 10]:
-            if kconf[idx] > 0.35:
-                wrists.append((float(kp[idx][0]), float(kp[idx][1])))
+    if res_pose:
+        pose0: Any = res_pose[0]
+        if pose0.boxes is not None and len(pose0.boxes) > 0 and pose0.keypoints is not None:
+            kp = pose0.keypoints.xy[0].cpu().numpy()
+            kconf = pose0.keypoints.conf[0].cpu().numpy()
+            for idx in [9, 10]:
+                if kconf[idx] > 0.35:
+                    wrists.append((float(kp[idx][0]), float(kp[idx][1])))
                 
     # 3. Lid elevation angle via brown density & container_lid
     target_angle = 0.0

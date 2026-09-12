@@ -40,6 +40,7 @@ class ValidationAgent:
         # Step Correctness Tracking (Nominal vs Anomaly)
         self.is_step_correct: bool = True
         self.step_verdict: str = "CORRECT (NOMINAL)"
+        self.vlm_anomaly_explanation: Optional[str] = None
 
     def load_protocol(self, config_path: str):
         """Dynamically switches the active procedural FSM protocol."""
@@ -61,6 +62,7 @@ class ValidationAgent:
         self.step_start_time = time.time()
         self.is_step_correct = True
         self.step_verdict = "CORRECT (NOMINAL)"
+        self.vlm_anomaly_explanation = None
 
     def evaluate_step(
         self,
@@ -88,12 +90,18 @@ class ValidationAgent:
                 self.anomaly_status = AnomalyType.STALL_TIMEOUT
                 self.anomaly_message = "Activity paused. Awaiting required procedural action."
 
-        # Extract LLM verified step if available
+        # Extract LLM/VLM verified step & anomaly diagnostic if available
         llm_step_val = None
         llm_confidence = 0.0
+        llm_what_wrong = None
+        llm_verdict = "NOMINAL"
         if llm_verification:
             llm_step_val = llm_verification.get("verified_step")
             llm_confidence = float(llm_verification.get("confidence", 0.0))
+            llm_verdict = llm_verification.get("anomaly_verdict", "NOMINAL")
+            raw_wrong = llm_verification.get("what_is_wrong")
+            if raw_wrong and raw_wrong != "None":
+                llm_what_wrong = raw_wrong
 
         # =================================================================
         # BRANCH A: ISRO BENCHMARK DUAL-BOX EXPERIMENT (PS #26174)
@@ -254,7 +262,11 @@ class ValidationAgent:
                             self.anomaly_status = AnomalyType.ERROR_SKIP
                             self.anomaly_message = "Warning: Step skipped. Please extract the object before closing the box."
                             self.is_step_correct = False
-                            self.step_verdict = "WRONG STEP: Box closed before extracting object! [ERROR_SKIP]"
+                            if llm_what_wrong:
+                                self.vlm_anomaly_explanation = llm_what_wrong
+                                self.step_verdict = f"WRONG STEP: {llm_what_wrong} [ERROR_SKIP]"
+                            else:
+                                self.step_verdict = "WRONG STEP: Box closed before extracting object! [ERROR_SKIP]"
                             return self.current_step, 0, self.anomaly_status, self.anomaly_message, None
                 else:
                     self.anomaly_debounce_counter = 0
@@ -302,7 +314,11 @@ class ValidationAgent:
                             self.anomaly_status = AnomalyType.ERROR_SEQ
                             self.anomaly_message = "Warning: Procedural error. The object has not been returned to the box."
                             self.is_step_correct = False
-                            self.step_verdict = "WRONG STEP: Object not returned into box before closing! [ERROR_SEQ]"
+                            if llm_what_wrong:
+                                self.vlm_anomaly_explanation = llm_what_wrong
+                                self.step_verdict = f"WRONG STEP: {llm_what_wrong} [ERROR_SEQ]"
+                            else:
+                                self.step_verdict = "WRONG STEP: Object not returned into box before closing! [ERROR_SEQ]"
                             return self.current_step, 0, self.anomaly_status, self.anomaly_message, None
                 else:
                     self.anomaly_debounce_counter = 0

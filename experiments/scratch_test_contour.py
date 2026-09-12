@@ -9,6 +9,8 @@ images = sorted(glob.glob("experiments/clip1_analysis_frames/*.jpg"))
 # And check its relationship with the container box
 for img_path in images:
     frame = cv2.imread(img_path)
+    if frame is None:
+        continue
     h, w = frame.shape[:2]
     
     # Container box is at x: [0.40*w, 0.70*w], y: [0.55*h, 0.95*h]

@@ -1,3 +1,4 @@
+from typing import Any
 import cv2, numpy as np
 from ultralytics import YOLO
 
@@ -15,14 +16,16 @@ for frame_idx in range(0, total_frames, 10):
     h, w = frame.shape[:2]
     
     # 1. Pose keypoints
-    res = pose_model(frame, verbose=False, conf=0.25)
+    res = list(pose_model(frame, verbose=False, conf=0.25))
     wrists = []
-    if res and len(res[0].boxes) > 0 and res[0].keypoints is not None:
-        kp = res[0].keypoints.xy[0].cpu().numpy()
-        conf = res[0].keypoints.conf[0].cpu().numpy()
-        for idx in [9, 10]:
-            if conf[idx] > 0.35:
-                wrists.append((float(kp[idx][0]), float(kp[idx][1])))
+    if res:
+        r0: Any = res[0]
+        if r0.boxes is not None and len(r0.boxes) > 0 and r0.keypoints is not None:
+            kp = r0.keypoints.xy[0].cpu().numpy()
+            conf = r0.keypoints.conf[0].cpu().numpy()
+            for idx in [9, 10]:
+                if conf[idx] > 0.35:
+                    wrists.append((float(kp[idx][0]), float(kp[idx][1])))
                 
     # 2. Check for real extracted component box in upper air (y < 500)
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)

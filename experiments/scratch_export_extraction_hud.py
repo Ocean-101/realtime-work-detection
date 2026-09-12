@@ -56,6 +56,6 @@ if ret:
     cv2.imwrite(art_path, hud_frame)
     print(f"Exported extraction frame: {out_path} and {art_path}")
     print(f"Objects detected: {list(objs.keys())}")
-    if "component_box" in objs:
+    if "component_box" in objs and objs["component_box"].bbox is not None:
         cb = objs["component_box"].bbox
         print(f"Component box: [{cb.xmin:.0f}, {cb.ymin:.0f}, {cb.xmax:.0f}, {cb.ymax:.0f}], inside={objs['component_box'].is_inside_container}")
