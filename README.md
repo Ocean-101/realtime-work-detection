@@ -92,6 +92,9 @@ Create and activate a virtual environment, then install the required packages:
 # Windows (PowerShell)
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+
+# For GPU & CUDA acceleration (e.g. NVIDIA RTX series with CUDA 12.x):
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
 ```
 
