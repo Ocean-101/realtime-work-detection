@@ -20,10 +20,30 @@ from src.core.types import (
 class DigitalTwinAgent:
     """Master 3D Scene Synchronizer and Digital Twin Engine."""
 
-    def __init__(self):
+    def __init__(self, is_dual: bool = False):
         # Virtual Payload Rack Static Model
         self.rack_dimensions_m = (0.80, 0.60, 0.50) # Width, Height, Depth
         self.container_origin_rack = Vector3D(0.0, 0.0, 0.0)
+        self.is_dual = is_dual
+        self.persisted_entities = {}
+        
+        if self.is_dual:
+            self.persisted_entities["red_box"] = {
+                "state": "DOCKED",
+                "pos_rack": [0.0, 0.0, 0.0],
+                "is_inside_container": True
+            }
+            self.persisted_entities["yellow_box"] = {
+                "state": "DOCKED",
+                "pos_rack": [0.0, 0.0, 0.0],
+                "is_inside_container": True
+            }
+        else:
+            self.persisted_entities["component_box"] = {
+                "state": "DOCKED",
+                "pos_rack": [0.0, 0.0, 0.0],
+                "is_inside_container": True
+            }
 
     def sync_scene_state(
         self,
@@ -55,13 +75,18 @@ class DigitalTwinAgent:
             }
         }
 
-        # Entities (Red Box, Yellow Box)
+        # Update persisted entities with latest vision detections
         for name, obj in objects.items():
-            scene_graph["entities"][name] = {
-                "state": obj.state.value if isinstance(obj.state, EntityState) else str(obj.state),
-                "pos_rack": [float(x) for x in obj.pos_rack.to_list()],
-                "is_inside_container": bool(obj.is_inside_container)
-            }
+            if "box" in name:
+                self.persisted_entities[name] = {
+                    "state": obj.state.value if isinstance(obj.state, EntityState) else str(obj.state),
+                    "pos_rack": [float(x) for x in obj.pos_rack.to_list()],
+                    "is_inside_container": bool(obj.is_inside_container)
+                }
+
+        # Write all persisted entities to the scene graph
+        for name, entity_data in self.persisted_entities.items():
+            scene_graph["entities"][name] = entity_data
 
         # Astronaut Joints
         for j_name, joint in pose.joints.items():
@@ -231,6 +256,22 @@ class DigitalTwinAgent:
             cv2.rectangle(canvas, (cx - 20, cy - 14), (cx + 20, cy + 14), (255, 140, 0), -1)
             cv2.rectangle(canvas, (cx - 20, cy - 14), (cx + 20, cy + 14), (255, 255, 255), 1)
             cv2.putText(canvas, "COMP", (cx - 16, cy + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+        if "red_box" in entities:
+            c_info = entities["red_box"]
+            cx = int(wb_cx - 25 if c_info["is_inside_container"] else wb_cx - 110)
+            cy = int(cb_y1 + 15 if c_info["is_inside_container"] else cb_y1 - 40)
+            cv2.rectangle(canvas, (cx - 20, cy - 14), (cx + 20, cy + 14), (0, 0, 200), -1)
+            cv2.rectangle(canvas, (cx - 20, cy - 14), (cx + 20, cy + 14), (255, 255, 255), 1)
+            cv2.putText(canvas, "RED", (cx - 14, cy + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
+
+        if "yellow_box" in entities:
+            c_info = entities["yellow_box"]
+            cx = int(wb_cx + 25 if c_info["is_inside_container"] else wb_cx + 110)
+            cy = int(cb_y1 + 15 if c_info["is_inside_container"] else cb_y1 - 40)
+            cv2.rectangle(canvas, (cx - 20, cy - 14), (cx + 20, cy + 14), (0, 220, 220), -1)
+            cv2.rectangle(canvas, (cx - 20, cy - 14), (cx + 20, cy + 14), (0, 0, 0), 1)
+            cv2.putText(canvas, "YEL", (cx - 14, cy + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 0), 1)
 
         # Draw Astronaut Rig Skeleton
         joints = scene_graph.get("astronaut", {}).get("joints", {})

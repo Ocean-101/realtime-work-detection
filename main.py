@@ -35,6 +35,7 @@ from src.agents.fusion_agent import FusionAgent
 from src.agents.har_agent import HARAgent
 from src.agents.digital_twin_agent import DigitalTwinAgent
 from src.agents.validation_agent import ValidationAgent
+from src.agents.dt_simulation_adapter import DTSimulationAdapter
 from src.agents.reasoning_agent import ReasoningAgent
 from src.agents.monitoring_agent import MonitoringAgent
 from src.llm.realtime_llm_verifier import RealtimeLLMVerifier
@@ -98,8 +99,12 @@ def run_orchestrator(
     agent_imu = IMUAgent()
     agent_fusion = FusionAgent()
     agent_har = HARAgent()
-    agent_twin = DigitalTwinAgent()
-    agent_validation = ValidationAgent(config_path=config_path)
+    agent_twin = DigitalTwinAgent(is_dual=is_red_yellow)
+    if is_red_yellow:
+        print("[Orchestrator] Engaging Advanced Digital Twin Validation Engine...")
+        agent_validation = DTSimulationAdapter(config_path=config_path)
+    else:
+        agent_validation = ValidationAgent(config_path=config_path)
     agent_reasoning = ReasoningAgent(config_path=config_path)
     agent_monitoring = MonitoringAgent(
         enable_tts=enable_tts,
@@ -290,6 +295,10 @@ def run_orchestrator(
             if new_exp_req:
                 print(f"\n[Orchestrator] Experiment switch requested from UI: {new_exp_req}")
                 try:
+                    if ("red_yellow" in new_exp_req or "experiment_fsm" in new_exp_req):
+                        agent_validation = DTSimulationAdapter(config_path=new_exp_req)
+                    else:
+                        agent_validation = ValidationAgent(config_path=new_exp_req)
                     agent_validation.load_protocol(new_exp_req)
                     agent_reasoning = ReasoningAgent(config_path=new_exp_req)
                     if ("red_yellow" in new_exp_req or "experiment_fsm" in new_exp_req):
