@@ -52,6 +52,8 @@ class PerceptionAgent:
         self.payload_was_extracted = False
         self.payload_is_docked = False
         self.payload_docked_frames = 0
+        self.red_was_extracted = False
+        self.yellow_was_extracted = False
 
         # 1. Offline YOLOv8 Deep Neural Object Detector for Experiment Protocol
         self.model = None
@@ -110,6 +112,8 @@ class PerceptionAgent:
         self.payload_was_extracted = False
         self.payload_is_docked = False
         self.payload_docked_frames = 0
+        self.red_was_extracted = False
+        self.yellow_was_extracted = False
 
     def process_frame(
         self,
@@ -131,8 +135,8 @@ class PerceptionAgent:
         # 1. Primary Neural Object Detector (YOLOv8 offline model trained on boxes & hands)
         if self.model is not None:
             try:
-                # conf=0.35 cleanly rejects background clutter while preserving real boxes (conf ~0.85-0.97)
-                results = self.model(frame, verbose=False, conf=0.35)
+                # conf=0.25 cleanly rejects background clutter while preserving real boxes (conf ~0.85-0.97)
+                results = self.model(frame, verbose=False, conf=0.25)
                 if results and len(results) > 0 and results[0].boxes:
                     class_names = getattr(self.model, "names", {
                         0: "container_box", 1: "container_lid", 2: "component_box",
@@ -150,8 +154,8 @@ class PerceptionAgent:
                         box_h = by2 - by1
                         box_area = box_w * box_h
 
-                        # Discard degenerate tiny noise boxes (< 800px) or full-screen container hallucinations (> 92% of frame)
-                        if box_area < 800 or (cls_id == 0 and box_area > 0.92 * frame_area):
+                        # Discard degenerate tiny noise boxes (< 800px) or full-screen container hallucinations (> 98% of frame)
+                        if box_area < 800 or (cls_id == 0 and box_area > 0.98 * frame_area):
                             continue
 
                         b = BBox2D(
@@ -249,29 +253,29 @@ class PerceptionAgent:
         # 5. Detection for ISRO Dual-Box benchmark objects (Red Box, Yellow Box)
         # Spatial filtering: restrict to astronaut workspace (exclude upper wall & right background)
         if "red_box" not in objects:
-            mask_red1 = cv2.inRange(hsv, np.array([0, 90, 70]), np.array([12, 255, 255]))
-            mask_red2 = cv2.inRange(hsv, np.array([165, 90, 70]), np.array([180, 255, 255]))
+            mask_red1 = cv2.inRange(hsv, np.array([0, 110, 70]), np.array([12, 255, 255]))
+            mask_red2 = cv2.inRange(hsv, np.array([165, 110, 70]), np.array([180, 255, 255]))
             mask_red = cv2.bitwise_or(mask_red1, mask_red2)
             mask_red[:int(0.28 * h), :] = 0   # Exclude upper ceiling / background
             mask_red[:, int(0.62 * w):] = 0   # Exclude right wall
-            red_bbox, red_center = self._extract_largest_bbox(mask_red, "red_box", 2, min_area=1200)
+            red_bbox, red_center = self._extract_largest_bbox(mask_red, "red_box", 2, min_area=1200, max_area=40000)
             if red_bbox:
                 red_cam = self._pixel_to_camera_coord(red_center[0], red_center[1], depth_m=1.15)
                 objects["red_box"] = ExperimentObject(name="red_box", class_name="red_box", bbox=red_bbox, pos_rack=red_cam)
 
         if "yellow_box" not in objects:
-            mask_yellow = cv2.inRange(hsv, np.array([18, 80, 70]), np.array([36, 255, 255]))
+            mask_yellow = cv2.inRange(hsv, np.array([18, 120, 80]), np.array([36, 255, 255]))
             mask_yellow[:int(0.32 * h), :] = 0  # Exclude upper ceiling / background wall
             mask_yellow[:, int(0.62 * w):] = 0   # Exclude right wall
-            yel_bbox, yel_center = self._extract_largest_bbox(mask_yellow, "yellow_box", 2, min_area=1000)
+            yel_bbox, yel_center = self._extract_largest_bbox(mask_yellow, "yellow_box", 2, min_area=1000, max_area=40000)
             if yel_bbox:
                 yel_cam = self._pixel_to_camera_coord(yel_center[0], yel_center[1], depth_m=1.15)
                 objects["yellow_box"] = ExperimentObject(name="yellow_box", class_name="yellow_box", bbox=yel_bbox, pos_rack=yel_cam)
 
         # 6. Compute Lid Elevation Angle
-        if "container_lid" in objects and objects["container_lid"].bbox:
+        if "container_lid" in objects:
             lid_b = objects["container_lid"].bbox
-            if cont_bbox:
+            if lid_b and cont_bbox:
                 elevation = max(0.0, cont_bbox.ymin - lid_b.ymin)
                 target_angle = min(85.0, (elevation / max(30.0, cont_bbox.height * 0.5)) * 80.0)
             else:
@@ -344,9 +348,10 @@ class PerceptionAgent:
                     wx, wy, c = pose.keypoints_2d[k]
                     if c > 0.30:
                         wrists.append((wx, wy))
-        if not wrists and "operator_hand" in objects and objects["operator_hand"].bbox:
+        if not wrists and "operator_hand" in objects:
             hb = objects["operator_hand"].bbox
-            wrists.append(((hb.xmin + hb.xmax) / 2.0, (hb.ymin + hb.ymax) / 2.0))
+            if hb:
+                wrists.append(((hb.xmin + hb.xmax) / 2.0, (hb.ymin + hb.ymax) / 2.0))
 
         # Check and update red_box extraction state
         red_obj = objects.get("red_box")
@@ -372,6 +377,7 @@ class PerceptionAgent:
             if is_outside_x or is_in_air or r_ext_px > 1500:
                 red_obj.is_inside_container = False
                 red_obj.state = EntityState.EXTRACTED
+                self.red_was_extracted = True
             else:
                 red_obj.is_inside_container = True
                 red_obj.state = EntityState.DOCKED
@@ -397,6 +403,7 @@ class PerceptionAgent:
             if is_outside_x or is_in_air or y_ext_px > 1200:
                 yel_obj.is_inside_container = False
                 yel_obj.state = EntityState.EXTRACTED
+                self.yellow_was_extracted = True
             else:
                 yel_obj.is_inside_container = True
                 yel_obj.state = EntityState.DOCKED
@@ -412,6 +419,34 @@ class PerceptionAgent:
             else:
                 comp.is_inside_container = True
                 comp.state = EntityState.DOCKED
+            
+            # Since component_box is handled by the neural model here, we still need to process wrists_elevated for red/yellow
+            pass
+        
+        # Resolution scaling factors (calibrated against 1080p reference)
+        scale_y = float(h) / 1080.0
+        scale_x = float(w) / 1920.0
+        scale_area = (float(w) * float(h)) / (1920.0 * 1080.0)
+
+        elev_thresh = min(int(0.48 * h), int(cont_ymin - 130.0 * scale_y))
+        wrists_elevated = any(wy < elev_thresh for wx, wy in wrists) if wrists else False
+
+        # Persist red and yellow boxes inside container if they vanish (e.g. dropped inside and occluded)
+        if not wrists_elevated:
+            if self.red_was_extracted and "red_box" not in objects:
+                objects["red_box"] = ExperimentObject(
+                    name="red_box", class_name="red_box", bbox=None,
+                    pos_rack=objects["container_box"].pos_rack if "container_box" in objects else Vector3D(),
+                    state=EntityState.DOCKED, is_inside_container=True
+                )
+            if self.yellow_was_extracted and "yellow_box" not in objects:
+                objects["yellow_box"] = ExperimentObject(
+                    name="yellow_box", class_name="yellow_box", bbox=None,
+                    pos_rack=objects["container_box"].pos_rack if "container_box" in objects else Vector3D(),
+                    state=EntityState.DOCKED, is_inside_container=True
+                )
+
+        if comp and comp.bbox:
             return
 
         # Resolution scaling factors (calibrated against 1080p reference)
@@ -557,16 +592,24 @@ class PerceptionAgent:
         mask: np.ndarray,
         class_name: str,
         class_id: int,
-        min_area: int = 500
+        min_area: int = 500,
+        max_area: Optional[int] = None
     ) -> Tuple[Optional[BBox2D], Tuple[float, float]]:
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return None, (0.0, 0.0)
 
-        c = max(contours, key=cv2.contourArea)
-        area = cv2.contourArea(c)
-        if area < min_area:
+        valid_contours = []
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area >= min_area and (max_area is None or area <= max_area):
+                valid_contours.append(c)
+
+        if not valid_contours:
             return None, (0.0, 0.0)
+
+        c = max(valid_contours, key=cv2.contourArea)
+        area = cv2.contourArea(c)
 
         x, y, bw, bh = cv2.boundingRect(c)
         if bw <= 0 or bh <= 0:

@@ -28,8 +28,8 @@ _is_analyzing = False
 
 def query_ollama(
     prompt: str,
-    model_name: str = "qwen2.5:1.5b",
-    timeout_sec: int = 8,
+    model_name: str = "qwen3-vl:2b-instruct",
+    timeout_sec: int = 30,
     max_tokens: int = 350
 ) -> Optional[str]:
     """Queries local Ollama endpoint with fast timeout to avoid GUI hangs."""
@@ -101,7 +101,7 @@ def generate_fallback_analysis(session_data: Dict[str, Any]) -> str:
 
 def analyze_session(
     json_path: str = "experiments/session_actions.json",
-    model_name: str = "qwen2.5:1.5b",
+    model_name: str = "qwen3-vl:2b-instruct",
     report_output_path: str = "experiments/llm_analysis_report.md"
 ) -> Dict[str, Any]:
     """
@@ -152,7 +152,7 @@ Keep the analysis professional, crisp, and formatted with clean markdown bullet 
     # Query local Ollama with fast timeout
     print(f"\n[Offline LLM Analyzer] Analyzing session actions using {model_name}...")
     t0 = time.time()
-    llm_report = query_ollama(prompt, model_name=model_name, timeout_sec=8)
+    llm_report = query_ollama(prompt, model_name=model_name, timeout_sec=30)
     query_time = round(time.time() - t0, 2)
 
     is_fallback = False
@@ -202,7 +202,7 @@ Keep the analysis professional, crisp, and formatted with clean markdown bullet 
 
 def start_async_analysis(
     json_path: str = "experiments/session_actions.json",
-    model_name: str = "qwen2.5:1.5b",
+    model_name: str = "qwen3-vl:2b-instruct",
     report_output_path: str = "experiments/llm_analysis_report.md"
 ):
     """Triggers session analysis in a background daemon thread to never block the main loop or GUI."""

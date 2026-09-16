@@ -578,18 +578,29 @@ class MonitoringAgent:
         if avail_width > 40:
             cv2.putText(frame, display_guide, (guide_start, bot_y), cv2.FONT_HERSHEY_SIMPLEX, guide_scale, guide_col, 1, cv2.LINE_AA)
 
-        # Prominent Central Alert Banner for WRONG STEP
-        if anomaly != AnomalyType.NONE or not is_step_correct:
-            warn_txt = f"WRONG STEP DETECTED: {instruction.upper()}"
-            w_scale = max(0.38, scale * 0.95)
-            (wtw, wth), _ = cv2.getTextSize(warn_txt, cv2.FONT_HERSHEY_SIMPLEX, w_scale, 2)
-            wx1 = max(10, (w - wtw) // 2 - 14)
-            wy1 = banner_h + 8
-            wx2 = min(w - 10, wx1 + wtw + 28)
-            wy2 = wy1 + wth + 14
-            cv2.rectangle(frame, (wx1, wy1), (wx2, wy2), (15, 15, 200), -1)
-            cv2.rectangle(frame, (wx1, wy1), (wx2, wy2), (255, 255, 255), 2)
-            cv2.putText(frame, warn_txt, (wx1 + 14, wy1 + wth + 7), cv2.FONT_HERSHEY_SIMPLEX, w_scale, (255, 255, 255), 2, cv2.LINE_AA)
+        # Prominent Central Alert Banner for WRONG STEP (Temporarily Disabled by User Request)
+        # if anomaly != AnomalyType.NONE or not is_step_correct:
+        #     warn_txt = f"WRONG STEP DETECTED: {instruction.upper()}"
+        #     w_scale = max(0.38, scale * 0.95)
+        #     (wtw, wth), _ = cv2.getTextSize(warn_txt, cv2.FONT_HERSHEY_SIMPLEX, w_scale, 2)
+        #     wx1 = max(10, (w - wtw) // 2 - 14)
+        #     wy1 = banner_h + 8
+        #     wx2 = min(w - 10, wx1 + wtw + 28)
+        #     wy2 = wy1 + wth + 14
+        #     cv2.rectangle(frame, (wx1, wy1), (wx2, wy2), (15, 15, 200), -1)
+        #     cv2.rectangle(frame, (wx1, wy1), (wx2, wy2), (255, 255, 255), 2)
+        #     cv2.putText(frame, warn_txt, (wx1 + 14, wy1 + wth + 7), cv2.FONT_HERSHEY_SIMPLEX, w_scale, (255, 255, 255), 2, cv2.LINE_AA)
+
+        # Composite 3D Digital Twin Canvas (Picture-in-Picture)
+        if twin_canvas is not None:
+            tc_h, tc_w = twin_canvas.shape[:2]
+            pip_w, pip_h = 320, 240
+            tc_resized = cv2.resize(twin_canvas, (pip_w, pip_h))
+            pip_x = w - pip_w - 10
+            pip_y = banner_h + 10
+            # Draw border
+            cv2.rectangle(frame, (pip_x - 2, pip_y - 2), (pip_x + pip_w + 2, pip_y + pip_h + 2), (255, 255, 255), 2)
+            frame[pip_y:pip_y+pip_h, pip_x:pip_x+pip_w] = tc_resized
 
         return frame
 
