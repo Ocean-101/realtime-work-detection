@@ -52,6 +52,8 @@ class PerceptionAgent:
         self.payload_was_extracted = False
         self.payload_is_docked = False
         self.payload_docked_frames = 0
+        self.red_was_extracted = False
+        self.yellow_was_extracted = False
 
         # 1. Offline YOLOv8 Deep Neural Object Detector for Experiment Protocol
         self.model = None
@@ -110,6 +112,8 @@ class PerceptionAgent:
         self.payload_was_extracted = False
         self.payload_is_docked = False
         self.payload_docked_frames = 0
+        self.red_was_extracted = False
+        self.yellow_was_extracted = False
 
     def process_frame(
         self,
@@ -269,9 +273,9 @@ class PerceptionAgent:
                 objects["yellow_box"] = ExperimentObject(name="yellow_box", class_name="yellow_box", bbox=yel_bbox, pos_rack=yel_cam)
 
         # 6. Compute Lid Elevation Angle
-        if "container_lid" in objects and objects["container_lid"].bbox:
+        if "container_lid" in objects:
             lid_b = objects["container_lid"].bbox
-            if cont_bbox:
+            if lid_b and cont_bbox:
                 elevation = max(0.0, cont_bbox.ymin - lid_b.ymin)
                 target_angle = min(85.0, (elevation / max(30.0, cont_bbox.height * 0.5)) * 80.0)
             else:
@@ -344,9 +348,10 @@ class PerceptionAgent:
                     wx, wy, c = pose.keypoints_2d[k]
                     if c > 0.30:
                         wrists.append((wx, wy))
-        if not wrists and "operator_hand" in objects and objects["operator_hand"].bbox:
+        if not wrists and "operator_hand" in objects:
             hb = objects["operator_hand"].bbox
-            wrists.append(((hb.xmin + hb.xmax) / 2.0, (hb.ymin + hb.ymax) / 2.0))
+            if hb:
+                wrists.append(((hb.xmin + hb.xmax) / 2.0, (hb.ymin + hb.ymax) / 2.0))
 
         # Check and update red_box extraction state
         red_obj = objects.get("red_box")
@@ -372,6 +377,7 @@ class PerceptionAgent:
             if is_outside_x or is_in_air or r_ext_px > 1500:
                 red_obj.is_inside_container = False
                 red_obj.state = EntityState.EXTRACTED
+                self.red_was_extracted = True
             else:
                 red_obj.is_inside_container = True
                 red_obj.state = EntityState.DOCKED
@@ -397,6 +403,7 @@ class PerceptionAgent:
             if is_outside_x or is_in_air or y_ext_px > 1200:
                 yel_obj.is_inside_container = False
                 yel_obj.state = EntityState.EXTRACTED
+                self.yellow_was_extracted = True
             else:
                 yel_obj.is_inside_container = True
                 yel_obj.state = EntityState.DOCKED
@@ -412,6 +419,34 @@ class PerceptionAgent:
             else:
                 comp.is_inside_container = True
                 comp.state = EntityState.DOCKED
+            
+            # Since component_box is handled by the neural model here, we still need to process wrists_elevated for red/yellow
+            pass
+        
+        # Resolution scaling factors (calibrated against 1080p reference)
+        scale_y = float(h) / 1080.0
+        scale_x = float(w) / 1920.0
+        scale_area = (float(w) * float(h)) / (1920.0 * 1080.0)
+
+        elev_thresh = min(int(0.48 * h), int(cont_ymin - 130.0 * scale_y))
+        wrists_elevated = any(wy < elev_thresh for wx, wy in wrists) if wrists else False
+
+        # Persist red and yellow boxes inside container if they vanish (e.g. dropped inside and occluded)
+        if not wrists_elevated:
+            if self.red_was_extracted and "red_box" not in objects:
+                objects["red_box"] = ExperimentObject(
+                    name="red_box", class_name="red_box", bbox=None,
+                    pos_rack=objects["container_box"].pos_rack if "container_box" in objects else Vector3D(),
+                    state=EntityState.DOCKED, is_inside_container=True
+                )
+            if self.yellow_was_extracted and "yellow_box" not in objects:
+                objects["yellow_box"] = ExperimentObject(
+                    name="yellow_box", class_name="yellow_box", bbox=None,
+                    pos_rack=objects["container_box"].pos_rack if "container_box" in objects else Vector3D(),
+                    state=EntityState.DOCKED, is_inside_container=True
+                )
+
+        if comp and comp.bbox:
             return
 
         # Resolution scaling factors (calibrated against 1080p reference)

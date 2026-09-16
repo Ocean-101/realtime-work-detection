@@ -100,11 +100,8 @@ def run_orchestrator(
     agent_fusion = FusionAgent()
     agent_har = HARAgent()
     agent_twin = DigitalTwinAgent(is_dual=is_red_yellow)
-    if is_red_yellow:
-        print("[Orchestrator] Engaging Advanced Digital Twin Validation Engine...")
-        agent_validation = DTSimulationAdapter(config_path=config_path)
-    else:
-        agent_validation = ValidationAgent(config_path=config_path)
+    print("[Orchestrator] Engaging Validation Engine...")
+    agent_validation = ValidationAgent(config_path=config_path)
     agent_reasoning = ReasoningAgent(config_path=config_path)
     agent_monitoring = MonitoringAgent(
         enable_tts=enable_tts,
@@ -250,7 +247,7 @@ def run_orchestrator(
             if new_src_req:
                 print(f"\n[Orchestrator] Video source switch requested from UI: {new_src_req}")
                 try:
-                    if str(new_src_req) in ("0", "cam", "webcam"):
+                    if new_src_req in ("0", "cam", "webcam"):
                         new_cap = open_hardware_camera(0)
                         if new_cap is not None:
                             if cap is not None:
@@ -261,7 +258,7 @@ def run_orchestrator(
                             print("[Orchestrator] Switched active video source to LIVE WEBCAM #0.")
                         else:
                             print("[Orchestrator] Hardware camera #0 not available for switch.")
-                    elif str(new_src_req) in ("clip1.mp4", "clip", "demo"):
+                    elif new_src_req in ("clip1.mp4", "clip", "demo"):
                         target_clip = "clip1.mp4" if os.path.exists("clip1.mp4") else "clip.mp4"
                         new_cap = cv2.VideoCapture(target_clip)
                         if new_cap.isOpened():
@@ -271,8 +268,8 @@ def run_orchestrator(
                             source = target_clip
                             source_type = "RECORDED_CLIP"
                             print(f"[Orchestrator] Switched active video source to RECORDED DEMO ({target_clip}).")
-                    elif os.path.exists(str(new_src_req)):
-                        target_clip = str(new_src_req)
+                    elif os.path.exists(new_src_req):
+                        target_clip = new_src_req
                         new_cap = cv2.VideoCapture(target_clip)
                         if new_cap.isOpened():
                             if cap is not None:
@@ -295,10 +292,7 @@ def run_orchestrator(
             if new_exp_req:
                 print(f"\n[Orchestrator] Experiment switch requested from UI: {new_exp_req}")
                 try:
-                    if ("red_yellow" in new_exp_req or "experiment_fsm" in new_exp_req):
-                        agent_validation = DTSimulationAdapter(config_path=new_exp_req)
-                    else:
-                        agent_validation = ValidationAgent(config_path=new_exp_req)
+                    agent_validation = ValidationAgent(config_path=new_exp_req)
                     agent_validation.load_protocol(new_exp_req)
                     agent_reasoning = ReasoningAgent(config_path=new_exp_req)
                     if ("red_yellow" in new_exp_req or "experiment_fsm" in new_exp_req):
