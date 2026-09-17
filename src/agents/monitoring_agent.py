@@ -266,7 +266,7 @@ class MonitoringAgent:
             base = obj_name.split("_")[0]
             if base in color_map:
                 return color_map[base]
-            h_val = int((abs(hash(obj_name)) * 37) % 180)
+            h_val = (abs(hash(obj_name)) * 37) % 180
             hsv_pix = np.array([[[h_val, 220, 240]]], dtype=np.uint8)
             bgr = cv2.cvtColor(hsv_pix, cv2.COLOR_HSV2BGR)[0][0]
             return (int(bgr[0]), int(bgr[1]), int(bgr[2]))
@@ -275,7 +275,7 @@ class MonitoringAgent:
         # Suppress arbitrary background clutter (chair, laptop, desk, etc.)
         EXPERIMENT_ALLOWED_NAMES = {
             "container_box", "container_lid", "component_box",
-            "red_box", "yellow_box", "astronaut_hand", "operator_hand", "human_body"
+            "red_box", "yellow_box", "astronaut_hand", "operator_hand", "human_body", "person"
         }
 
         occupied_badge_rects: List[Tuple[int, int, int, int]] = []
@@ -283,7 +283,7 @@ class MonitoringAgent:
         for name, obj in objects.items():
             is_experiment_thing = (
                 name in EXPERIMENT_ALLOWED_NAMES
-                or any(k in name for k in ("container", "box", "lid", "component", "hand", "human"))
+                or any(k in name for k in ("container", "box", "lid", "component", "hand", "human", "person"))
             )
             if not is_experiment_thing:
                 continue
@@ -343,6 +343,24 @@ class MonitoringAgent:
                     (rx1 + pad_x, ry1 + th + pad_y - 1),
                     cv2.FONT_HERSHEY_SIMPLEX, font_scale, (10, 10, 10), 1, cv2.LINE_AA
                 )
+
+                # Draw relationship tags if they exist
+                if hasattr(obj, "relations") and obj.relations:
+                    rel_y = ry2 + 3
+                    for rel in obj.relations[:2]: # Show top 2 relations to avoid UI clutter
+                        rel_txt = f"{rel.predicate} {rel.object_name}"
+                        (rtw, rth), _ = cv2.getTextSize(rel_txt, cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.85, 1)
+                        rbadge_w = rtw + pad_x * 2
+                        rbadge_h = rth + pad_y * 2
+                        cv2.rectangle(frame, (rx1, rel_y), (rx1 + rbadge_w, rel_y + rbadge_h), col, -1)
+                        cv2.rectangle(frame, (rx1, rel_y), (rx1 + rbadge_w, rel_y + rbadge_h), (10, 10, 10), 1)
+                        cv2.putText(
+                            frame, rel_txt,
+                            (rx1 + pad_x, rel_y + rth + pad_y - 1),
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.85, (10, 10, 10), 1, cv2.LINE_AA
+                        )
+                        occupied_badge_rects.append((rx1, rel_y, rx1 + rbadge_w, rel_y + rbadge_h))
+                        rel_y += rbadge_h + 3
 
         # 2. Draw Full Person Skeleton & Biomechanical Joints
         if hasattr(pose, "keypoints_2d") and pose.keypoints_2d:
@@ -450,9 +468,9 @@ class MonitoringAgent:
 
         # Separator lines
         is_dual_experiment = (
-            "RED" in str(experiment_id).upper()
-            or "26174" in str(experiment_id)
-            or "RED_YELLOW" in str(source_type).upper()
+            "RED" in experiment_id.upper()
+            or "26174" in experiment_id
+            or "RED_YELLOW" in source_type.upper()
         )
         is_complete = (
             current_step in (FSMStep.COMPLETE, FSMStep.BOX_CLOSED)
@@ -466,7 +484,7 @@ class MonitoringAgent:
         if source_type == "LIVE_WEBCAM":
             src_tag = "LIVE #0"
             title_col = (0, 240, 150)
-        elif "RED_YELLOW" in str(source_type):
+        elif "RED_YELLOW" in source_type:
             src_tag = "RED-YELLOW"
             title_col = (50, 220, 255)
         else:

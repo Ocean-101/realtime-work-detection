@@ -85,22 +85,41 @@ stateDiagram-v2
 
 ## 4. Quick Start & Execution Guide
 
-### Prerequisites
-Create and activate a virtual environment, then install the required packages:
+### Prerequisites & CPU-Only Setup
+Ensure you have **Python 3.10 or 3.11** installed. Create and activate a virtual environment:
 
 ```powershell
 # Windows (PowerShell)
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 ```
 
 ```bash
 # Linux / macOS
 python3 -m venv .venv
 source .venv/bin/activate
+```
+
+**1. Install CPU-Optimized PyTorch (Crucial for non-GPU machines):**
+If you do not have an NVIDIA GPU, you MUST install the CPU-only version of PyTorch to avoid downloading gigabytes of useless CUDA binaries:
+```bash
+# For Windows and Linux
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# For macOS
+pip install torch torchvision torchaudio
+```
+
+**2. Install remaining dependencies:**
+```bash
 pip install -r requirements.txt
 ```
+
+**3. Install and Start Ollama (For Local VLM Verification):**
+This system uses a local Vision-Language Model (`Qwen3-VL:2B`) for real-time verification.
+- Download and install **Ollama** from [ollama.com/download](https://ollama.com/download).
+- Open a terminal and run: `ollama run qwen3-vl:2b-instruct`
+- Keep Ollama running in the background while executing `main.py`.
 
 ### 1. Run the Multi-Agent System (Default Simulation Video)
 ```bash

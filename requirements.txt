@@ -9,3 +9,11 @@ pydantic>=2.0.0
 torch>=2.2.0
 torchvision>=0.17.0
 ultralytics>=8.1.0
+
+# RelateAnything Dependencies
+transformers>=5.14.0
+safetensors>=0.4.0
+huggingface_hub>=0.23.0
+onnxruntime>=1.15.0
+onnx>=1.14.0
+scipy>=1.10.0

@@ -418,6 +418,14 @@ def run_orchestrator(
             is_priority = (agent_validation.anomaly_status != AnomalyType.NONE) or (agent_validation.debounce_counter > 0)
             detected_names = list(objects_state.keys())
 
+            # Compile semantic relations for the LLM prompt
+            rel_strings = []
+            for obj_name, obj in objects_state.items():
+                if hasattr(obj, "relations") and obj.relations:
+                    for r in obj.relations:
+                        rel_strings.append(f"{r.subject_name} --{r.predicate}--> {r.object_name}")
+            semantic_relations_str = ", ".join(rel_strings) if rel_strings else "None"
+
             llm_verifier.push_telemetry(
                 frame_id=frame_id,
                 step=agent_validation.current_step,
@@ -429,7 +437,8 @@ def run_orchestrator(
                 anomaly=agent_validation.anomaly_status,
                 frame=raw_frame,
                 detected_objects=detected_names,
-                force_priority=is_priority
+                force_priority=is_priority,
+                semantic_relations=semantic_relations_str
             )
             llm_verif = llm_verifier.get_latest_verification()
 

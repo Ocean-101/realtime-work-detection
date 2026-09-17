@@ -131,7 +131,8 @@ class RealtimeLLMVerifier:
         anomaly: AnomalyType,
         frame: Optional[np.ndarray] = None,
         detected_objects: Optional[List[str]] = None,
-        force_priority: bool = False
+        force_priority: bool = False,
+        semantic_relations: Optional[str] = None
     ):
         """
         Pushes a snapshot of frame telemetry and visual frame into the verifier.
@@ -147,7 +148,8 @@ class RealtimeLLMVerifier:
                 "is_inside": 1 if is_inside else 0,
                 "hoi_action": hoi_action,
                 "hand_dist_m": round(hand_dist_m, 2),
-                "anomaly": anomaly.value if hasattr(anomaly, "value") else str(anomaly)
+                "anomaly": anomaly.value if hasattr(anomaly, "value") else str(anomaly),
+                "semantic_relations": semantic_relations if semantic_relations else "None"
             })
 
             if frame is not None:
@@ -207,6 +209,7 @@ class RealtimeLLMVerifier:
         candidate_step = recent["heuristic_step"]
         candidate_name = recent["step_name"]
         detected_str = ", ".join(detected_objects) if detected_objects else "None"
+        recent_relations = recent.get("semantic_relations", "None")
 
         is_ry = "red_yellow" in self.experiment_id.lower() or "26174" in self.experiment_id
         if is_ry:
@@ -234,12 +237,15 @@ Recent Physical & YOLO Observations:
 - Component Inside Container Ratio: {round(inside_ratio, 2)}
 - Current Activities: {', '.join(recent_activities)}
 - Detected Physical Objects: {detected_str}
+- Semantic Scene Relations: {recent_relations}
 - Candidate Step: {candidate_step} ({candidate_name})
 - YOLO Anomaly Flag: {recent['anomaly']}
 
 CRITICAL PROCEDURAL SUPERVISION RULES:
 1. Visually determine the actual physical step (0 to {self.max_step}).
 2. Check for sequence errors, skipped steps, future step actions done prematurely, or unlisted moves:
+   - If the Semantic Scene Relations show the person is "dancing", "walking away", or "far away from" the workspace, IMMEDIATELY set anomaly_verdict to "PROCEDURAL_ERROR" and state in what_is_wrong: "Warning: Wrong move! You are [dancing/walking away/far away]. Please return to the station and focus."
+   - If the Semantic Scene Relations show the person "touching" or "holding" the wrong object for the current step (e.g. holding the yellow box when they should be extracting the red box first), IMMEDIATELY set anomaly_verdict to "PROCEDURAL_ERROR" and state in what_is_wrong: "Warning: Wrong move! You skipped a step. Please roll back and perform the correct action."
    - If the operator performs an action from a future step (e.g. attempting to close before extracting, or skipping an extraction step), set anomaly_verdict to "PROCEDURAL_ERROR" and state clearly: "Future step detected prematurely: [detail]".
    - If an unlisted/unauthorized action occurs, set anomaly_verdict to "PROCEDURAL_ERROR".
    - If nominal, set anomaly_verdict to "NOMINAL".
