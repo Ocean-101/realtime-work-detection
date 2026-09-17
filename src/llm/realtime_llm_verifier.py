@@ -41,6 +41,7 @@ class RealtimeLLMVerifier:
         self.window_size = window_size
         self.target_img_size = target_img_size
         self.experiment_id = experiment_id
+        self.max_step = 5 if "red_yellow" in experiment_id.lower() or "26174" in experiment_id else 4
 
         self.telemetry_history = deque(maxlen=window_size)
         self.latest_frame: Optional[np.ndarray] = None

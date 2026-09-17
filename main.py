@@ -35,7 +35,7 @@ from src.agents.fusion_agent import FusionAgent
 from src.agents.har_agent import HARAgent
 from src.agents.digital_twin_agent import DigitalTwinAgent
 from src.agents.validation_agent import ValidationAgent
-from src.agents.dt_simulation_adapter import DTSimulationAdapter
+
 from src.agents.reasoning_agent import ReasoningAgent
 from src.agents.monitoring_agent import MonitoringAgent
 from src.llm.realtime_llm_verifier import RealtimeLLMVerifier
@@ -63,6 +63,7 @@ def run_orchestrator(
     # Detect if source or protocol is the Red-Yellow experiment
     is_red_yellow = (
         "red_yellow" in str(source).lower()
+        or "clip.mp4" in str(source).lower()
         or (config_path is not None and "red_yellow" in str(config_path).lower())
     )
 
@@ -544,7 +545,7 @@ def run_orchestrator(
 
             # Procedure Step Event Commit
             if trans_event:
-                print(f"\n[PROCEDURE EVENT] Milestone Committed: {trans_event} -> Step {int(step)} ({step.name})")
+                print(f"\n[PROCEDURE EVENT] Milestone Committed: {trans_event} -> Step {int(step)} ({step.get_name(is_red_yellow)})")
 
             # Procedural Completion: Trigger Automated Offline Local LLM Audit (Async / Non-Blocking)
             if trans_event in ("BOX_CLOSED", "YELLOW_BOX_EXTRACTED", "BENCHMARK_COMPLETE"):
@@ -566,7 +567,7 @@ def run_orchestrator(
                 vlm_wrong = llm_verif.get("what_is_wrong", "None")
                 wrong_disp = f" | Issue: {vlm_wrong[:35]}" if (vlm_wrong != "None" and not agent_validation.is_step_correct) else ""
                 sys.stdout.write(
-                    f"\r[{source_type[:4]}] F{frame_id:04d} | Step {int(step)}: {step.name:16s} | Verdict: {v_disp} | LLM: {llm_disp:10s} | Deb: {deb_count:02d}/06 | FPS: {fps:4.1f}{wrong_disp}  "
+                    f"\r[{source_type[:4]}] F{frame_id:04d} | Step {int(step)}: {step.get_name(is_red_yellow):16s} | Verdict: {v_disp} | LLM: {llm_disp:10s} | Deb: {deb_count:02d}/06 | FPS: {fps:4.1f}{wrong_disp}  "
                 )
                 sys.stdout.flush()
 

@@ -107,7 +107,7 @@ class HARAgent:
                     obj_cx = (obj.bbox.xmin + obj.bbox.xmax) / 2.0
                     obj_cy = (obj.bbox.ymin + obj.bbox.ymax) / 2.0
                     # Lifted above or moved outside lateral container bounds
-                    if (obj_cy < cont.bbox.ymin - 10 or 
+                    if (obj_cy < cont.bbox.ymin - 30 or 
                         obj_cx < cont.bbox.xmin - 30 or 
                         obj_cx > cont.bbox.xmax + 30):
                         is_outside = True
@@ -116,7 +116,7 @@ class HARAgent:
                 else:
                     delta_y = obj.pos_rack.y - cont_pos.y
                     delta_x = abs(obj.pos_rack.x - cont_pos.x)
-                    if delta_x > 0.22 or delta_y < -0.15:
+                    if delta_x > 0.22 or delta_y < -0.25:
                         is_outside = True
                     else:
                         is_outside = False

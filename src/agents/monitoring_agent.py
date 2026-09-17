@@ -266,7 +266,7 @@ class MonitoringAgent:
             base = obj_name.split("_")[0]
             if base in color_map:
                 return color_map[base]
-            h_val = int((abs(hash(obj_name)) * 37) % 180)
+            h_val = (abs(hash(obj_name)) * 37) % 180
             hsv_pix = np.array([[[h_val, 220, 240]]], dtype=np.uint8)
             bgr = cv2.cvtColor(hsv_pix, cv2.COLOR_HSV2BGR)[0][0]
             return (int(bgr[0]), int(bgr[1]), int(bgr[2]))
@@ -450,9 +450,9 @@ class MonitoringAgent:
 
         # Separator lines
         is_dual_experiment = (
-            "RED" in str(experiment_id).upper()
-            or "26174" in str(experiment_id)
-            or "RED_YELLOW" in str(source_type).upper()
+            "RED" in experiment_id.upper()
+            or "26174" in experiment_id
+            or "RED_YELLOW" in source_type.upper()
         )
         is_complete = (
             current_step in (FSMStep.COMPLETE, FSMStep.BOX_CLOSED)
@@ -466,7 +466,7 @@ class MonitoringAgent:
         if source_type == "LIVE_WEBCAM":
             src_tag = "LIVE #0"
             title_col = (0, 240, 150)
-        elif "RED_YELLOW" in str(source_type):
+        elif "RED_YELLOW" in source_type:
             src_tag = "RED-YELLOW"
             title_col = (50, 220, 255)
         else:

@@ -11,7 +11,7 @@ import time
 import cv2
 import numpy as np
 
-WORKSPACE_ROOT = r"e:\SIH"
+WORKSPACE_ROOT = r"e:\BAS\realtime-work-detection"
 if WORKSPACE_ROOT not in sys.path:
     sys.path.insert(0, WORKSPACE_ROOT)
 
@@ -44,7 +44,7 @@ class ProceduralHARClassifier(nn.Module):
 
 
 def extract_telemetry_dataset(
-    video_path=os.path.join(WORKSPACE_ROOT, "red_yellow.mp4"),
+    video_path=os.path.join(WORKSPACE_ROOT, "clip.mp4"),
     csv_output=os.path.join(WORKSPACE_ROOT, "dataset", "red_yellow_dataset", "har_telemetry.csv"),
     stride=2
 ):
@@ -124,13 +124,13 @@ def extract_telemetry_dataset(
                     hand_dist = 0.55
 
             # Keypoints from pose model
-            res = pose_model(frame, verbose=False)[0]
+            res = list(pose_model(frame, verbose=False))[0]  # type: ignore
             wx, wy, wz = 0.0, 0.45, 1.2
             elbow_deg = 85.0
             shoulder_deg = 45.0
 
-            if res.keypoints is not None and len(res.keypoints) > 0:
-                kps = res.keypoints[0].data[0].tolist()
+            if getattr(res, 'keypoints', None) is not None and len(res.keypoints) > 0:  # type: ignore
+                kps = res.keypoints[0].data[0].tolist()  # type: ignore
                 # 10: right wrist, 8: right elbow, 6: right shoulder
                 if len(kps) > 10 and kps[10][2] > 0.2:
                     raw_wx, raw_wy = kps[10][0], kps[10][1]

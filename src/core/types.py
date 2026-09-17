@@ -41,6 +41,19 @@ class FSMStep(int, Enum):
     OBJECTS_RETURNED = 4
     DUAL_COMPLETE = 5
 
+    def get_name(self, is_dual: bool = False) -> str:
+        if is_dual:
+            mapping = {
+                0: "IDLE",
+                1: "CONTAINER_OPEN",
+                2: "RED_EXTRACTED",
+                3: "YELLOW_EXTRACTED",
+                4: "OBJECTS_RETURNED",
+                5: "BOX_CLOSED"
+            }
+            return mapping.get(self.value, self.name)
+        return self.name
+
 
 class AnomalyType(str, Enum):
     NONE = "NONE"
