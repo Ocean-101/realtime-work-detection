@@ -173,3 +173,9 @@ class TelemetryEvent:
     instruction: str
     anomaly: str = "NONE"
     metrics: Dict[str, float] = field(default_factory=dict)
+
+@dataclass
+class SpatialMetrics:
+    distance_to_container_m: float = 999.0
+    distance_to_components_m: Dict[str, float] = field(default_factory=dict)
+    wrist_in_container_2d: bool = False

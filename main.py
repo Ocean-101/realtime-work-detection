@@ -33,6 +33,7 @@ from src.agents.perception_agent import PerceptionAgent
 from src.agents.imu_agent import IMUAgent
 from src.agents.fusion_agent import FusionAgent
 from src.agents.har_agent import HARAgent
+from src.agents.spatial_agent import SpatialAgent
 from src.agents.digital_twin_agent import DigitalTwinAgent
 from src.agents.validation_agent import ValidationAgent
 
@@ -99,6 +100,7 @@ def run_orchestrator(
     agent_perception = PerceptionAgent()
     agent_imu = IMUAgent()
     agent_fusion = FusionAgent()
+    agent_spatial = SpatialAgent()
     agent_har = HARAgent()
     agent_twin = DigitalTwinAgent(is_dual=is_red_yellow)
     print("[Orchestrator] Engaging Validation Engine...")
@@ -370,15 +372,9 @@ def run_orchestrator(
                             break
                         time.sleep(0.02)
 
-                # Loop video file for continuous exhibition/testing
-                print("\n[Orchestrator] Looping experiment from Step 0...")
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                reset_pipeline()
-                frame_id = 0
-                ret, raw_frame = cap.read()
-                if not ret:
-                    time.sleep(0.033)
-                    continue
+                # Prevent looping to gracefully close the video file and trigger mesh recovery
+                print("\n[Orchestrator] Reached end of video file. Gracefully exiting to finalize processing...")
+                break
 
             frame_id += 1
             if max_frames and frame_id > max_frames:
@@ -406,8 +402,9 @@ def run_orchestrator(
             )
 
             # AGENT 4: HAR Agent (AdaSpot RoI + 3D Hand-Object Interaction Engine)
+            spatial_metrics = agent_spatial.evaluate_spatial_metrics(fused_pose, objects_rack)
             active_hoi, objects_state, current_activity = agent_har.evaluate_interactions(
-                fused_pose, objects_rack, lid_angle
+                fused_pose, objects_rack, lid_angle, spatial_metrics
             )
             # Push Telemetry Snapshot to Real-Time Local LLM Verifier
             comp_obj = objects_state.get("component_box")
@@ -598,6 +595,21 @@ def run_orchestrator(
             agent_monitoring.close()
         except (Exception, KeyboardInterrupt):
             pass
+
+        # Trigger mesh recovery after video file is fully closed/finalized
+        try:
+            from src.core.mesh_recovery import start_async_mesh_recovery
+            video_to_process = None
+            if hasattr(agent_monitoring, 'video_pipeline') and agent_monitoring.video_pipeline and agent_monitoring.video_pipeline.local_output_path:
+                video_to_process = agent_monitoring.video_pipeline.local_output_path
+            elif source_type != "LIVE_WEBCAM" and isinstance(source, str):
+                video_to_process = source
+            
+            if video_to_process:
+                print(f"\n[Orchestrator] Automatically triggering Mesh Recovery on finalized video: {video_to_process}")
+                start_async_mesh_recovery(video_to_process)
+        except Exception as e:
+            print(f"[Orchestrator] Mesh Recovery finalization notice: {e}")
         
         # Calculate final telemetry compression audit
         try:
