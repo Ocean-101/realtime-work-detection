@@ -1,6 +1,6 @@
 # Bharatiya Antariksh Station (BAS) - AI Mission Debrief
-**Session ID**: `SES-20260917_200129` | **Procedure**: Box Object Extraction & Return Procedure | **Analysis Model**: `Deterministic Expert Rule Engine`
-**Analysis Time**: 2026-09-17 20:03:34 (Inference: 32.26s)
+**Session ID**: `SES-20260918_183603` | **Procedure**: Box Object Extraction & Return Procedure | **Analysis Model**: `Deterministic Expert Rule Engine`
+**Analysis Time**: 2026-09-18 18:37:47 (Inference: 32.43s)
 
 ---
 
@@ -10,31 +10,31 @@
 - **Anomaly Count**: 1 safety gates tripped.
 
 ### 2. Action Timeline Breakdown
-- **Step 0 (IDLE)** [1.55s]: Action: `IDLE` | Requirement: `System initialized. Please open the primary container box.`
+- **Step 0 (IDLE)** [1.98s]: Action: `IDLE` | Requirement: `System initialized. Please open the primary container box.`
 - **Step 0 (IDLE)** [0.1s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `System initialized. Please open the primary container box.`
-- **Step 0 (IDLE)** [0.25s]: Action: `GRASPING COMPONENT BOX` | Requirement: `System initialized. Please open the primary container box.`
-- **Step 1 (BOX_OPENED)** [0.19s]: Action: `GRASPING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
-- **Step 1 (BOX_OPENED)** [14.38s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
-- **Step 1 (BOX_OPENED)** [0.1s]: Action: `GRASPING COMPONENT BOX` | Requirement: `WRONG MOVE: Step skipped. Please extract the red box before closing.`
-- **Step 1 (BOX_OPENED)** [34.87s]: Action: `GRASPING COMPONENT BOX [ROM LIMIT]` | Requirement: `WRONG MOVE: Step skipped. Please extract the red box before closing.`
+- **Step 0 (IDLE)** [0.13s]: Action: `GRASPING COMPONENT BOX` | Requirement: `System initialized. Please open the primary container box.`
+- **Step 1 (BOX_OPENED)** [0.63s]: Action: `GRASPING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
+- **Step 1 (BOX_OPENED)** [0.14s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
 - **Step 1 (BOX_OPENED)** [0.1s]: Action: `GRASPING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
-- **Step 1 (BOX_OPENED)** [67.68s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
-- **Step 1 (BOX_OPENED)** [0.1s]: Action: `GRASPING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
-- **Step 1 (BOX_OPENED)** [2.33s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `WRONG MOVE: Step skipped. Please extract the red box before closing.`
-- **Step 1 (BOX_OPENED)** [5.91s]: Action: `GRASPING COMPONENT BOX` | Requirement: `WRONG MOVE: Step skipped. Please extract the red box before closing.`
-- **Step 1 (BOX_OPENED)** [5.46s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
-- **Step 1 (BOX_OPENED)** [159.63s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
+- **Step 1 (BOX_OPENED)** [12.0s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `WRONG MOVE: Step skipped. Please extract the red box before closing.`
+- **Step 1 (BOX_OPENED)** [2.58s]: Action: `GRASPING COMPONENT BOX` | Requirement: `WRONG MOVE: Step skipped. Please extract the red box before closing.`
+- **Step 1 (BOX_OPENED)** [3.96s]: Action: `GRASPING COMPONENT BOX [ROM LIMIT]` | Requirement: `WRONG MOVE: Step skipped. Please extract the red box before closing.`
+- **Step 1 (BOX_OPENED)** [0.89s]: Action: `GRASPING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
+- **Step 1 (BOX_OPENED)** [0.1s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
+- **Step 1 (BOX_OPENED)** [4.51s]: Action: `GRASPING COMPONENT BOX` | Requirement: `WRONG MOVE: Step skipped. Please extract the red box before closing.`
+- **Step 1 (BOX_OPENED)** [9.96s]: Action: `APPROACHING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
+- **Step 1 (BOX_OPENED)** [21.12s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
 - **Step 1 (BOX_OPENED)** [0.1s]: Action: `PICKING COMPONENT BOX` | Requirement: `Container open. Next step: Please extract the red box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
-- **Step 2 (OBJECT_EXTRACTED)** [8.04s]: Action: `PICKING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
-- **Step 2 (OBJECT_EXTRACTED)** [8.65s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
-- **Step 2 (OBJECT_EXTRACTED)** [2.99s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
+- **Step 2 (OBJECT_EXTRACTED)** [9.32s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.23s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
+- **Step 2 (OBJECT_EXTRACTED)** [37.29s]: Action: `HOLDING COMPONENT BOX [ROM LIMIT]` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
 - **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX [ROM LIMIT]` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
-- **Step 2 (OBJECT_EXTRACTED)** [245.76s]: Action: `PICKING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
+- **Step 2 (OBJECT_EXTRACTED)** [16.54s]: Action: `PICKING COMPONENT BOX [ROM LIMIT]` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
+- **Step 2 (OBJECT_EXTRACTED)** [3.55s]: Action: `PICKING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
 - **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `RETURNING COMPONENT BOX INTO BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
-- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
-- **Step 2 (OBJECT_EXTRACTED)** [2.1s]: Action: `PICKING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
+- **Step 2 (OBJECT_EXTRACTED)** [3.75s]: Action: `HOLDING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
+- **Step 2 (OBJECT_EXTRACTED)** [0.1s]: Action: `PICKING COMPONENT BOX` | Requirement: `Red box extracted. Next step: Please extract the yellow box.`
 - **Step 3 (OBJECT_RETURNED)** [0.0s]: Action: `PICKING COMPONENT BOX` | Requirement: `Yellow box extracted. Next step: Please return both yellow and red boxes into the container.`
 
 ### 3. Safety & Compliance Analysis
