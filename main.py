@@ -35,7 +35,6 @@ from src.agents.fusion_agent import FusionAgent
 from src.agents.har_agent import HARAgent
 from src.agents.digital_twin_agent import DigitalTwinAgent
 from src.agents.validation_agent import ValidationAgent
-from src.agents.dt_simulation_adapter import DTSimulationAdapter
 from src.agents.reasoning_agent import ReasoningAgent
 from src.agents.monitoring_agent import MonitoringAgent
 from src.llm.realtime_llm_verifier import RealtimeLLMVerifier
@@ -60,6 +59,9 @@ def run_orchestrator(
     print("   ISRO SIH Problem Statement #26174")
     print("=" * 70)
 
+    if config_path is None:
+        config_path = "configs/red_yellow_fsm.json"
+
     # Detect if source or protocol is the Red-Yellow experiment
     is_red_yellow = (
         "red_yellow" in str(source).lower()
@@ -67,15 +69,11 @@ def run_orchestrator(
     )
 
     if is_red_yellow:
-        if config_path is None or "box_return" in str(config_path):
-            config_path = "configs/red_yellow_fsm.json"
         if realtime_feed_dir == "realtime_feed":
             realtime_feed_dir = "realtime_feed_red_yellow"
         if output_csv_dir is None:
             output_csv_dir = "experiments_red_yellow"
     else:
-        if config_path is None:
-            config_path = "configs/box_return_fsm.json"
         if output_csv_dir is None:
             output_csv_dir = "experiments"
 
@@ -418,6 +416,14 @@ def run_orchestrator(
             is_priority = (agent_validation.anomaly_status != AnomalyType.NONE) or (agent_validation.debounce_counter > 0)
             detected_names = list(objects_state.keys())
 
+            # Compile semantic relations for the LLM prompt
+            rel_strings = []
+            for obj_name, obj in objects_state.items():
+                if hasattr(obj, "relations") and obj.relations:
+                    for r in obj.relations:
+                        rel_strings.append(f"{r.subject_name} --{r.predicate}--> {r.object_name}")
+            semantic_relations_str = ", ".join(rel_strings) if rel_strings else "None"
+
             llm_verifier.push_telemetry(
                 frame_id=frame_id,
                 step=agent_validation.current_step,
@@ -429,7 +435,8 @@ def run_orchestrator(
                 anomaly=agent_validation.anomaly_status,
                 frame=raw_frame,
                 detected_objects=detected_names,
-                force_priority=is_priority
+                force_priority=is_priority,
+                semantic_relations=semantic_relations_str
             )
             llm_verif = llm_verifier.get_latest_verification()
 
@@ -657,7 +664,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.common:
-        from realtime_detect import run_realtime_detection
+        from tools.realtime_detect import run_realtime_detection
         run_realtime_detection(source=args.source, conf_threshold=0.30, max_frames=args.frames)
         sys.exit(0)
 

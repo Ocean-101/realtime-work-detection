@@ -7,10 +7,10 @@ _dt_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "
 if _dt_path not in sys.path:
     sys.path.insert(0, _dt_path)
 
-from src.world.builder import WorldModelBuilder
-from src.events.detector import EventDetector
-from src.state_machine.machine import DigitalTwinStateMachine, TwinState
-from src.validation.procedure_validator import ProcedureValidator
+from src.world.builder import WorldModelBuilder  # type: ignore
+from src.events.detector import EventDetector  # type: ignore
+from src.state_machine.machine import DigitalTwinStateMachine, TwinState  # type: ignore
+from src.validation.procedure_validator import ProcedureValidator  # type: ignore
 from src.core.types import FSMStep, AnomalyType, EntityState
 
 
