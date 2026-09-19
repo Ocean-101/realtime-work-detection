@@ -46,7 +46,40 @@ class AnomalyType(str, Enum):
     NONE = "NONE"
     ERROR_SEQ = "ERROR_SEQ"
     ERROR_SKIP = "ERROR_SKIP"
+    ERROR_REGRESSION = "ERROR_REGRESSION"
+    ERROR_TECHNIQUE = "ERROR_TECHNIQUE"
     STALL_TIMEOUT = "STALL_TIMEOUT"
+
+
+# Event-to-condition mapping for config-driven forbidden_events enforcement
+FORBIDDEN_EVENT_CONDITIONS = {
+    "YELLOW_BOX_EXTRACTED": lambda objects, lid_angle, hoi: (
+        "yellow_box" in objects
+        and (not objects["yellow_box"].is_inside_container
+             or objects["yellow_box"].state == EntityState.EXTRACTED)
+    ),
+    "YELLOW_BOX_TOUCHED": lambda objects, lid_angle, hoi: (
+        any(h.object_name == "yellow_box"
+            and h.action in (HOIAction.CONTACT, HOIAction.GRASP, HOIAction.EXTRACT)
+            for h in hoi)
+    ),
+    "RED_BOX_EXTRACTED": lambda objects, lid_angle, hoi: (
+        "red_box" in objects
+        and (not objects["red_box"].is_inside_container
+             or objects["red_box"].state == EntityState.EXTRACTED)
+    ),
+    "RED_BOX_TOUCHED": lambda objects, lid_angle, hoi: (
+        any(h.object_name == "red_box"
+            and h.action in (HOIAction.CONTACT, HOIAction.GRASP, HOIAction.EXTRACT)
+            for h in hoi)
+    ),
+    "LID_CLOSED": lambda objects, lid_angle, hoi: lid_angle <= 12.0,
+    "BOX_CLOSED": lambda objects, lid_angle, hoi: lid_angle <= 12.0,
+    "CONTAINER_ABANDONED": lambda objects, lid_angle, hoi: (
+        not any(h.action != HOIAction.IDLE for h in hoi)
+        and lid_angle >= 15.0
+    ),
+}
 
 
 @dataclass
