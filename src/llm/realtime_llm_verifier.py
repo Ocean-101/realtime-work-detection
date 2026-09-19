@@ -132,6 +132,7 @@ class RealtimeLLMVerifier:
         anomaly: AnomalyType,
         frame: Optional[np.ndarray] = None,
         detected_objects: Optional[List[str]] = None,
+        spatial_relations: Optional[List[str]] = None,
         force_priority: bool = False
     ):
         """
@@ -148,7 +149,8 @@ class RealtimeLLMVerifier:
                 "is_inside": 1 if is_inside else 0,
                 "hoi_action": hoi_action,
                 "hand_dist_m": round(hand_dist_m, 2),
-                "anomaly": anomaly.value if hasattr(anomaly, "value") else str(anomaly)
+                "anomaly": anomaly.value if hasattr(anomaly, "value") else str(anomaly),
+                "spatial_relations": spatial_relations if spatial_relations else []
             })
 
             if frame is not None:
@@ -208,6 +210,7 @@ class RealtimeLLMVerifier:
         candidate_step = recent["heuristic_step"]
         candidate_name = recent["step_name"]
         detected_str = ", ".join(detected_objects) if detected_objects else "None"
+        spatial_str = "\n".join([f"  - {rel}" for rel in recent.get("spatial_relations", [])]) if recent.get("spatial_relations") else "  - None"
 
         is_ry = "red_yellow" in self.experiment_id.lower() or "26174" in self.experiment_id
         if is_ry:
@@ -235,6 +238,8 @@ Recent Physical & YOLO Observations:
 - Component Inside Container Ratio: {round(inside_ratio, 2)}
 - Current Activities: {', '.join(recent_activities)}
 - Detected Physical Objects: {detected_str}
+- Recent Spatial Relations (RelateAnything):
+{spatial_str}
 - Candidate Step: {candidate_step} ({candidate_name})
 - YOLO Anomaly Flag: {recent['anomaly']}
 

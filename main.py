@@ -24,6 +24,15 @@ import argparse
 import cv2
 import numpy as np
 
+# Add RelateAnything to path
+sys.path.insert(0, os.path.join(_workspace_dir, "RelateAnything-main"))
+try:
+    from deploy.postprocess import ThresholdConfig # type: ignore
+    from deploy.runtime import DetectorConfig, ScenePipeline # type: ignore
+except ImportError as e:
+    print(f"CRITICAL: Failed to import ScenePipeline: {e}")
+    ScenePipeline = None
+
 # Core & Blackboard
 from src.core.types import FSMStep, AnomalyType
 from src.core.shared_memory import DigitalTwinBlackboard
@@ -87,6 +96,28 @@ def run_orchestrator(
 
     # 1. Initialize Shared Memory Blackboard
     blackboard = DigitalTwinBlackboard()
+
+    # 1.5. Initialize RelateAnything ScenePipeline
+    print("[Orchestrator] Initializing RelateAnything ScenePipeline for Spatial Relations...")
+    relate_pipe = None
+    if ScenePipeline is not None:
+        try:
+            relate_pipe = ScenePipeline(
+                dist_dir="RelateAnything-main/deploy/dist/relsgg-vits16plus",
+                detector="RelateAnything-main/deploy/dist/detector-local/detector.onnx",
+                backend="onnx",
+                det_cfg=DetectorConfig(conf=0.25, iou=0.5, max_det=32),
+                thr_cfg=ThresholdConfig(threshold=0.5, topk=20)
+            )
+            try:
+                relate_pipe.rel.set_predicates([
+                    "on", "on top of", "in front of", "behind", "beside", 
+                    "inside", "contained in", "above", "below", "holding"
+                ])
+            except Exception:
+                pass # Use baked predicates
+        except Exception as e:
+            print(f"[Orchestrator] Warning: Could not init RelateAnything pipeline: {e}")
 
     # 2. Instantiate Real-Time Asynchronous Local VLM Verifier (Ollama Qwen3-VL)
     print("[Orchestrator] Engaging Multimodal VLM Real-Time Verifier (qwen3-vl:2b-instruct @ http://localhost:11434)...")
@@ -390,6 +421,20 @@ def run_orchestrator(
             # ==========================================
             t_infer_start = time.time()
 
+            # AGENT 0.5: RelateAnything Spatial Relations
+            spatial_relations = []
+            if relate_pipe is not None:
+                try:
+                    res = relate_pipe(raw_frame)
+                    for t in res.triplets:
+                        sub = t.subject_label.lower()
+                        obj = t.object_label.lower()
+                        if "box" in sub or "container" in sub or "box" in obj or "container" in obj:
+                            spatial_relations.append(f"[{sub}] is {t.predicate} [{obj}] (score: {t.score:.2f})")
+                except Exception as e:
+                    print(f"\n[DEBUG RelateAnything error]: {e}")
+                    pass
+
             # AGENT 1: Perception Agent (YOLOv8n + 3D HMR)
             objects_cam, pose_cam, lid_angle = agent_perception.process_frame(raw_frame)
 
@@ -427,6 +472,7 @@ def run_orchestrator(
                 anomaly=agent_validation.anomaly_status,
                 frame=raw_frame,
                 detected_objects=detected_names,
+                spatial_relations=spatial_relations,
                 force_priority=is_priority
             )
             llm_verif = llm_verifier.get_latest_verification()
@@ -507,7 +553,8 @@ def run_orchestrator(
                 is_step_correct=agent_validation.is_step_correct,
                 step_verdict=agent_validation.step_verdict,
                 experiment_id=agent_validation.experiment_id,
-                scene_graph=scene_graph
+                scene_graph=scene_graph,
+                spatial_relations=spatial_relations
             )
 
             # On-Screen Video Feed Display (Native OpenCV Window, only if Desktop GUI is NOT active)

@@ -67,8 +67,8 @@ def extract_telemetry_dataset(
     if ra_dir not in sys.path:
         sys.path.insert(0, ra_dir)
     
-    from deploy.runtime import OnnxRelationHead
-    from deploy.postprocess import decode, ThresholdConfig
+    from deploy.runtime import OnnxRelationHead  # type: ignore
+    from deploy.postprocess import decode, ThresholdConfig  # type: ignore
     rel_path = os.path.join(ra_dir, "deploy", "dist", "relsgg-vits16plus", "relateanything.onnx")
     bank_path = os.path.join(ra_dir, "deploy", "dist", "relsgg-vits16plus", "predicate_bank.npz")
     rel_head = OnnxRelationHead(rel_path, bank_path=bank_path)
