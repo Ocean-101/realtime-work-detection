@@ -196,6 +196,84 @@
       "end_frame": 216,
       "lid_angle_deg": 60.9,
       "compliance": "NOMINAL"
+    },
+    {
+      "step": 4,
+      "step_name": "COMPLETE",
+      "what_i_am_doing": "HOLDING COMPONENT BOX",
+      "what_i_have_to_do": "Yellow and red boxes returned. Next step: Please close the container box.",
+      "start_time_sec": 100.6,
+      "end_time_sec": 111.55,
+      "duration_sec": 10.95,
+      "start_frame": 568,
+      "end_frame": 569,
+      "lid_angle_deg": 64.9,
+      "compliance": "NOMINAL"
+    },
+    {
+      "step": 4,
+      "step_name": "COMPLETE",
+      "what_i_am_doing": "RETURNING COMPONENT BOX INTO BOX",
+      "what_i_have_to_do": "Yellow and red boxes returned. Next step: Please close the container box.",
+      "start_time_sec": 111.55,
+      "end_time_sec": 124.59,
+      "duration_sec": 13.04,
+      "start_frame": 569,
+      "end_frame": 618,
+      "lid_angle_deg": 60.3,
+      "compliance": "NOMINAL"
+    },
+    {
+      "step": 4,
+      "step_name": "COMPLETE",
+      "what_i_am_doing": "PICKING COMPONENT BOX",
+      "what_i_have_to_do": "WRONG MOVE: Red box has been returned to container. This undoes a completed step. Please re-extract the red box.",
+      "start_time_sec": 124.59,
+      "end_time_sec": 113.77,
+      "duration_sec": 0.1,
+      "start_frame": 618,
+      "end_frame": 621,
+      "lid_angle_deg": 60.7,
+      "compliance": "ANOMALY: ERROR_REGRESSION"
+    },
+    {
+      "step": 4,
+      "step_name": "COMPLETE",
+      "what_i_am_doing": "PICKING COMPONENT BOX [ROM LIMIT]",
+      "what_i_have_to_do": "WRONG MOVE: Red box has been returned to container. This undoes a completed step. Please re-extract the red box.",
+      "start_time_sec": 113.77,
+      "end_time_sec": 126.54,
+      "duration_sec": 12.77,
+      "start_frame": 621,
+      "end_frame": 625,
+      "lid_angle_deg": 60.8,
+      "compliance": "ANOMALY: ERROR_REGRESSION"
+    },
+    {
+      "step": 4,
+      "step_name": "COMPLETE",
+      "what_i_am_doing": "HOLDING COMPONENT BOX [ROM LIMIT]",
+      "what_i_have_to_do": "WRONG MOVE: Red box has been returned to container. This undoes a completed step. Please re-extract the red box.",
+      "start_time_sec": 126.54,
+      "end_time_sec": 153.52,
+      "duration_sec": 26.98,
+      "start_frame": 625,
+      "end_frame": 626,
+      "lid_angle_deg": 61.1,
+      "compliance": "ANOMALY: ERROR_REGRESSION"
+    },
+    {
+      "step": 4,
+      "step_name": "COMPLETE",
+      "what_i_am_doing": "HOLDING COMPONENT BOX",
+      "what_i_have_to_do": "WRONG MOVE: Red box has been returned to container. This undoes a completed step. Please re-extract the red box.",
+      "start_time_sec": 153.52,
+      "end_time_sec": 153.52,
+      "duration_sec": 0.0,
+      "start_frame": 626,
+      "end_frame": 626,
+      "lid_angle_deg": 61.3,
+      "compliance": "ANOMALY: ERROR_REGRESSION"
     }
   ]
 }
