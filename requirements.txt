@@ -1,15 +1,19 @@
 # Bharatiya Antariksh Station (BAS) - On-Board HAR Multi-Agent System
---extra-index-url https://download.pytorch.org/whl/cu124
-
 # Core Vision & Scientific Stack
 numpy>=2.0.0
 opencv-python>=4.8.0
 pillow>=10.0.0
 pydantic>=2.0.0
-pywin32>=306; sys_platform == 'win32'
 
-# Offline Model Training & Inference Stack (CUDA GPU Accelerated)
+# Offline Model Training & Inference Stack
 torch>=2.2.0
 torchvision>=0.17.0
 ultralytics>=8.1.0
 
+# RelateAnything Dependencies
+transformers>=5.14.0
+safetensors>=0.4.0
+huggingface_hub>=0.23.0
+onnxruntime>=1.15.0
+onnx>=1.14.0
+scipy>=1.10.0

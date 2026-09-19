@@ -144,13 +144,22 @@ class IMUReading:
 
 
 @dataclass
+class Relation:
+    subject_name: str
+    object_name: str
+    predicate: str
+    score: float
+
+
+@dataclass
 class ExperimentObject:
     name: str
     class_name: str
     bbox: Optional[BBox2D] = None
     pos_rack: Vector3D = field(default_factory=Vector3D)
     state: EntityState = EntityState.DOCKED
-    is_inside_container: bool = True
+    is_inside_container: bool = False
+    relations: List[Relation] = field(default_factory=list)
 
 
 @dataclass

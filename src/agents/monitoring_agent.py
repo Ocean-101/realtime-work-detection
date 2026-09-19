@@ -278,7 +278,7 @@ class MonitoringAgent:
         # Suppress arbitrary background clutter (chair, laptop, desk, etc.)
         EXPERIMENT_ALLOWED_NAMES = {
             "container_box", "container_lid", "component_box",
-            "red_box", "yellow_box", "astronaut_hand", "operator_hand", "human_body"
+            "red_box", "yellow_box", "astronaut_hand", "operator_hand", "human_body", "person"
         }
 
         occupied_badge_rects: List[Tuple[int, int, int, int]] = []
@@ -286,7 +286,7 @@ class MonitoringAgent:
         for name, obj in objects.items():
             is_experiment_thing = (
                 name in EXPERIMENT_ALLOWED_NAMES
-                or any(k in name for k in ("container", "box", "lid", "component", "hand", "human"))
+                or any(k in name for k in ("container", "box", "lid", "component", "hand", "human", "person"))
             )
             if not is_experiment_thing:
                 continue
@@ -346,6 +346,24 @@ class MonitoringAgent:
                     (rx1 + pad_x, ry1 + th + pad_y - 1),
                     cv2.FONT_HERSHEY_SIMPLEX, font_scale, (10, 10, 10), 1, cv2.LINE_AA
                 )
+
+                # Draw relationship tags if they exist
+                if hasattr(obj, "relations") and obj.relations:
+                    rel_y = ry2 + 3
+                    for rel in obj.relations[:2]: # Show top 2 relations to avoid UI clutter
+                        rel_txt = f"{rel.predicate} {rel.object_name}"
+                        (rtw, rth), _ = cv2.getTextSize(rel_txt, cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.85, 1)
+                        rbadge_w = rtw + pad_x * 2
+                        rbadge_h = rth + pad_y * 2
+                        cv2.rectangle(frame, (rx1, rel_y), (rx1 + rbadge_w, rel_y + rbadge_h), col, -1)
+                        cv2.rectangle(frame, (rx1, rel_y), (rx1 + rbadge_w, rel_y + rbadge_h), (10, 10, 10), 1)
+                        cv2.putText(
+                            frame, rel_txt,
+                            (rx1 + pad_x, rel_y + rth + pad_y - 1),
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.85, (10, 10, 10), 1, cv2.LINE_AA
+                        )
+                        occupied_badge_rects.append((rx1, rel_y, rx1 + rbadge_w, rel_y + rbadge_h))
+                        rel_y += rbadge_h + 3
 
         # 2. Draw Full Person Skeleton & Biomechanical Joints
         if hasattr(pose, "keypoints_2d") and pose.keypoints_2d:

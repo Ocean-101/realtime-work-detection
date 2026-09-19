@@ -106,6 +106,29 @@ class PerceptionAgent:
             except Exception as e:
                 print(f"[Perception Agent] Pose detector note: {e}")
 
+        # 4. RelateAnything Engine for Scene Understanding
+        self.relate_anything = None
+        self.frame_count = 0
+        self.last_relations = {}  # Cache relations across frames
+        
+        import sys
+        _ra_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../RelateAnything-main/RelateAnything-main"))
+        if os.path.exists(_ra_path) and _ra_path not in sys.path:
+            sys.path.insert(0, _ra_path)
+        
+        try:
+            from relsgg import RelateAnything  # type: ignore
+            # Use CPU as hardware configuration specified no GPU
+            self.relate_anything = RelateAnything.from_pretrained("maelic/relsgg-vits16plus", device="cpu")
+            self.relate_anything.set_vocabulary([
+                "standing next to", "far away from", "holding", "touching", "looking at",
+                "dancing", "walking away"
+            ])
+            print("[Perception Agent] RelateAnything engaged on CPU.")
+        except Exception as e:
+            print(f"[Perception Agent] RelateAnything init note: {e}")
+
+
     def reset(self):
         """Resets dynamic tracking state for a new test or experiment run."""
         self.last_lid_angle = 0.0
@@ -127,6 +150,7 @@ class PerceptionAgent:
             - pose: Reconstructed 3D astronaut pose in camera coordinates
             - lid_angle: Measured container lid angle in degrees
         """
+        self.frame_count += 1
         h, w, _ = frame.shape
         objects: Dict[str, ExperimentObject] = {}
         hand_bbox = None
@@ -217,7 +241,7 @@ class PerceptionAgent:
                                 bbox=b,
                                 pos_rack=obj_cam,
                                 state=EntityState.DOCKED,
-                                is_inside_container=True
+                                is_inside_container=False
                             )
                             break
             except Exception:
@@ -279,7 +303,7 @@ class PerceptionAgent:
                 elevation = max(0.0, cont_bbox.ymin - lid_b.ymin)
                 target_angle = min(85.0, (elevation / max(30.0, cont_bbox.height * 0.5)) * 80.0)
             else:
-                target_angle = 45.0
+                target_angle = 0.0
         elif cont_bbox:
             # Dynamic edge & contour check above container box
             target_angle = self._estimate_lid_angle(frame, cont_bbox)
@@ -313,6 +337,50 @@ class PerceptionAgent:
 
         # 8. Resolve Component Box Payload & Extraction / Return State
         self._resolve_component_box(frame, objects, cont_bbox, lid_angle, pose, w, h)
+
+        # 9. Real-Time Spatial and Interaction Relation Prediction (Every 15 frames)
+        if self.relate_anything is not None:
+            if self.frame_count % 15 == 0 and len(objects) >= 2:
+                try:
+                    # Prepare object list and their boxes
+                    obj_names = list(objects.keys())
+                    boxes = []
+                    for name in obj_names:
+                        obj = objects[name]
+                        if obj.bbox:
+                            boxes.append([obj.bbox.xmin, obj.bbox.ymin, obj.bbox.xmax, obj.bbox.ymax])
+                        else:
+                            # Fallback for objects without standard bbox (should be rare)
+                            boxes.append([0.0, 0.0, 1.0, 1.0])
+                    
+                    boxes_xyxy = np.array(boxes, dtype=np.float32)
+                    
+                    # Predict relations
+                    triplets = self.relate_anything.predict(frame, boxes_xyxy, topk=15)
+                    
+                    from src.core.types import Relation
+                    self.last_relations = {} # Reset cached relations
+                    for t in triplets:
+                        sub_name = obj_names[t.subject_idx]
+                        obj_name = obj_names[t.object_idx]
+                        
+                        rel = Relation(
+                            subject_name=sub_name, 
+                            object_name=obj_name, 
+                            predicate=t.predicate, 
+                            score=float(t.score)
+                        )
+                        if sub_name not in self.last_relations:
+                            self.last_relations[sub_name] = []
+                        self.last_relations[sub_name].append(rel)
+                        
+                except Exception as e:
+                    print(f"[Perception Agent] RelateAnything prediction error: {e}")
+            
+            # Attach cached relations to the current frame's objects
+            for obj_name, rel_list in self.last_relations.items():
+                if obj_name in objects:
+                    objects[obj_name].relations = rel_list
 
         return objects, pose, lid_angle
 
