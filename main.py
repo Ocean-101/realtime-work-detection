@@ -717,7 +717,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.common:
-        from realtime_detect import run_realtime_detection
+        from tools.realtime_detect import run_realtime_detection
         run_realtime_detection(source=args.source, conf_threshold=0.30, max_frames=args.frames)
         sys.exit(0)
 
