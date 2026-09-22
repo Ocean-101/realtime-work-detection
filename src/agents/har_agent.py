@@ -5,7 +5,7 @@ and temporal activity recognition primitives (Approach, Contact, Grasp, Extract,
 """
 
 import math
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 from src.core.types import (
     AstronautPose3D,
     ExperimentObject,
@@ -37,6 +37,10 @@ class HARAgent:
         self.previous_wrist_pos: Optional[Vector3D] = None
         self.last_lid_angle: float = 0.0
 
+        # Temporal action sequence buffer (sliding window for sequence classifier)
+        self.action_history: List[Dict[str, Any]] = []
+        self.action_history_max: int = 30  # ~1 second @ 30fps
+
     def reset(self):
         """Resets all HOI contact counters for a new test cycle."""
         for k in self.contact_frame_counters:
@@ -44,6 +48,7 @@ class HARAgent:
         self.previously_extracted.clear()
         self.previous_wrist_pos = None
         self.last_lid_angle = 0.0
+        self.action_history.clear()
 
     def evaluate_interactions(
         self,
@@ -190,5 +195,18 @@ class HARAgent:
             primary_activity += " [ROM LIMIT]"
 
         self.previous_wrist_pos = wrist_pos
+
+        # Record action snapshot into temporal sliding window
+        self.action_history.append({
+            "activity": primary_activity,
+            "hoi_actions": [h.action.value for h in active_hoi],
+            "lid_angle": lid_angle,
+            "objects_inside": {name: obj.is_inside_container for name, obj in objects.items()
+                               if name not in self.EXCLUDED_TARGETS},
+            "extracted": dict(self.previously_extracted),
+        })
+        if len(self.action_history) > self.action_history_max:
+            self.action_history.pop(0)
+
         return active_hoi, objects, primary_activity
 
